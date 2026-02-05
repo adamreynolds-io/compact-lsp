@@ -1,0 +1,6 @@
+node_modules/
+out/
+dist/
+*.js.map
+*.tsbuildinfo
+.vscode-test/

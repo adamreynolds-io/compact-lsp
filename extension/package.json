@@ -1,0 +1,35 @@
+{
+  "name": "compact-lsp-extension",
+  "displayName": "Compact Language Support",
+  "description": "Language support for Compact smart contract files",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Programming Languages"],
+  "activationEvents": [
+    "onLanguage:compact"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "compact",
+        "aliases": ["Compact", "compact"],
+        "extensions": [".compact"]
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "watch": "tsc -b -w"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.5.0"
+  }
+}
