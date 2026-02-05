@@ -1,0 +1,27 @@
+pragma language_version 0.14.0;
+include "standard_library.compact";
+
+export sealed ledger counter : Field;
+
+witness getSecret() : Field;
+
+export pure circuit increment(amount: Field) : Void {
+  counter += amount;
+}
+
+struct Point {
+  x: Field;
+  y: Field;
+}
+
+enum Color { red, green, blue }
+
+module Utils {
+  circuit helper(v: Field) : Field { }
+}
+
+const MAX: Uint<32> = 100;
+
+contract MyContract {
+  circuit verify(proof: Field) : Boolean;
+}

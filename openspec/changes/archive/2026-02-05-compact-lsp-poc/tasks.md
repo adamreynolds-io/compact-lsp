@@ -72,4 +72,4 @@
 - [x] 9.1 Implement extension activation: register `compact` language, associate `.compact` file extension
 - [x] 9.2 Implement LSP client: launch server process, establish stdio JSON-RPC connection using `vscode-languageclient`
 - [x] 9.3 Handle server crash: report error to user
-- [ ] 9.4 Manual smoke test: open a `.compact` file in VS Code, verify hover and diagnostics work end-to-end
+- [x] 9.4 Manual smoke test: open a `.compact` file in VS Code, verify hover and diagnostics work end-to-end
