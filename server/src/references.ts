@@ -2,6 +2,12 @@ import { Token, TokenKind } from './lexer';
 import { SourceRange, ParseResult } from './ast';
 import { Scope, resolveSymbol, Reference } from './symbols';
 import { findTokenAtPosition, findScopeForPosition } from './utils';
+import { WorkspaceIndex } from './workspaceIndex';
+
+export interface ReferenceResult {
+  range: SourceRange;
+  uri?: string;
+}
 
 export function findReferences(
   parseResult: ParseResult,
@@ -11,7 +17,9 @@ export function findReferences(
   column: number,
   tokens: Token[],
   includeDeclaration: boolean,
-): SourceRange[] {
+  workspaceIndex?: WorkspaceIndex,
+  currentFileUri?: string,
+): ReferenceResult[] {
   // Find the token at position
   const token = findTokenAtPosition(tokens, line, column);
   if (!token) return [];
@@ -28,21 +36,76 @@ export function findReferences(
   const symbol = resolveSymbol(token.text, scope);
   if (!symbol) return [];
 
-  const result: SourceRange[] = [];
+  const result: ReferenceResult[] = [];
 
   // Optionally include the declaration itself
   if (includeDeclaration && symbol.declaration !== undefined) {
-    result.push(symbol.range);
+    result.push({ range: symbol.range });
   }
 
-  // Scan references: for each reference, resolve it in its scope and check
-  // if it resolves to the same declaration (same SymbolInfo object)
+  // Scan references in current file
   for (const ref of references) {
     if (ref.name !== symbol.name) continue;
 
     const resolved = resolveSymbol(ref.name, ref.scope);
     if (resolved === symbol) {
-      result.push(ref.range);
+      result.push({ range: ref.range });
+    }
+  }
+
+  // Cross-file references
+  if (workspaceIndex && currentFileUri) {
+    // Determine the "canonical" symbol we're looking for
+    let canonicalUri = currentFileUri;
+    let canonicalName = symbol.name;
+
+    if (symbol.resolvedUri && symbol.resolvedName) {
+      // We're looking at an imported symbol — follow to source
+      canonicalUri = symbol.resolvedUri;
+      canonicalName = symbol.resolvedName;
+    }
+
+    // Check if this symbol is exported from its file
+    const canonicalEntry = workspaceIndex.getFileEntry(canonicalUri);
+    if (canonicalEntry && canonicalEntry.exports.has(canonicalName)) {
+      // Search all other indexed files for references to this exported symbol
+      for (const [fileUri, entry] of workspaceIndex.files) {
+        if (fileUri === currentFileUri) continue;
+
+        // Check if the file imports this symbol
+        for (const [localName, sym] of entry.fileScope.symbols) {
+          if (sym.resolvedUri === canonicalUri && sym.resolvedName === canonicalName) {
+            // The import specifier itself is a reference
+            result.push({ range: sym.range, uri: fileUri });
+
+            // Also find body references in that file that resolve to this imported symbol
+            for (const ref of entry.references) {
+              if (ref.name !== localName) continue;
+              const resolved = resolveSymbol(ref.name, ref.scope);
+              if (resolved === sym) {
+                result.push({ range: ref.range, uri: fileUri });
+              }
+            }
+          }
+        }
+      }
+
+      // If we followed an import to source, also include source file references
+      if (canonicalUri !== currentFileUri && canonicalEntry) {
+        const srcSymbol = canonicalEntry.exports.get(canonicalName);
+        if (srcSymbol) {
+          if (includeDeclaration) {
+            result.push({ range: srcSymbol.range, uri: canonicalUri });
+          }
+          for (const ref of canonicalEntry.references) {
+            if (ref.name !== canonicalName) continue;
+            const resolved = resolveSymbol(ref.name, ref.scope);
+            if (resolved === srcSymbol) {
+              result.push({ range: ref.range, uri: canonicalUri });
+            }
+          }
+        }
+      }
     }
   }
 

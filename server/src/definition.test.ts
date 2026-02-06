@@ -3,6 +3,8 @@ import { tokenize } from './lexer';
 import { parse } from './parser';
 import { buildSymbolTable } from './symbols';
 import { getDefinition } from './definition';
+import { WorkspaceIndex } from './workspaceIndex';
+import { fsPathToUri } from './moduleResolution';
 
 function definition(source: string, line: number, column: number) {
   const result = parse(source);
@@ -225,6 +227,67 @@ describe('Definition Provider', () => {
       // The circuit declaration starts at line 0, column 0
       expect(result!.range.start.line).toBe(0);
       expect(result!.range.start.column).toBe(0);
+    });
+  });
+
+  describe('cross-file definition', () => {
+    function makeUri(name: string): string {
+      return fsPathToUri(`/project/src/${name}`);
+    }
+
+    it('go-to-definition on imported symbol returns location in source file', () => {
+      const index = new WorkspaceIndex();
+      const mathUri = makeUri('math.compact');
+      const mainUri = makeUri('main.compact');
+
+      const mathSrc = 'module MathUtils { export circuit add(x: Field) : Field { } }';
+      const mainSrc = 'import { add } from MathUtils;\ncircuit bar() : Void { add; }';
+
+      index.addFile(mathUri, mathSrc);
+      index.addFile(mainUri, mainSrc);
+      index.resolveFileImports(mainUri);
+
+      const mainEntry = index.getFileEntry(mainUri)!;
+      const tokens = tokenize(mainSrc);
+      // 'add' on line 1 at column 23
+      const result = getDefinition(
+        mainEntry.parseResult,
+        mainEntry.fileScope,
+        mainEntry.references,
+        1,
+        23,
+        tokens,
+        index,
+      );
+
+      expect(result).toBeDefined();
+      expect(result!.uri).toBe(mathUri);
+    });
+
+    it('unresolvable import returns local range (no cross-file)', () => {
+      const index = new WorkspaceIndex();
+      const mainUri = makeUri('main.compact');
+      const mainSrc = 'import { foo } from UnknownModule;\ncircuit bar() : Void { foo; }';
+
+      index.addFile(mainUri, mainSrc);
+      index.resolveFileImports(mainUri);
+
+      const mainEntry = index.getFileEntry(mainUri)!;
+      const tokens = tokenize(mainSrc);
+      // 'foo' on line 1 at column 23
+      const result = getDefinition(
+        mainEntry.parseResult,
+        mainEntry.fileScope,
+        mainEntry.references,
+        1,
+        23,
+        tokens,
+        index,
+      );
+
+      // Should still return a result (the import declaration itself)
+      expect(result).toBeDefined();
+      expect(result!.uri).toBeUndefined();
     });
   });
 });

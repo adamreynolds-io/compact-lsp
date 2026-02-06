@@ -40,6 +40,8 @@ export interface SymbolInfo {
   declaration: Declaration | Parameter | undefined;
   range: SourceRange;
   scope: Scope;
+  resolvedUri?: string;
+  resolvedName?: string;
 }
 
 export interface Scope {
@@ -592,6 +594,50 @@ function walkExpression(expr: Expression, scope: Scope, references: Reference[])
     case 'LiteralExpression': {
       // Nothing to do
       break;
+    }
+  }
+}
+
+export function getExportedSymbols(
+  sourceFile: SourceFile,
+  fileScope: Scope,
+): Map<string, SymbolInfo> {
+  const exports = new Map<string, SymbolInfo>();
+  collectExports(sourceFile.declarations, fileScope, exports);
+  return exports;
+}
+
+function collectExports(
+  declarations: Declaration[],
+  scope: Scope,
+  exports: Map<string, SymbolInfo>,
+): void {
+  for (const decl of declarations) {
+    // Check declarations with isExport flag
+    if ('isExport' in decl && (decl as { isExport: boolean }).isExport && 'name' in decl) {
+      const name = (decl as { name: string }).name;
+      const sym = scope.symbols.get(name);
+      if (sym) {
+        exports.set(name, sym);
+      }
+    }
+
+    // Walk into module declarations to find nested exported symbols
+    if (decl.kind === 'ModuleDefinition') {
+      const moduleScope = scope.children.find((c) => c.name === decl.name);
+      if (moduleScope) {
+        collectExports(decl.declarations, moduleScope, exports);
+      }
+    }
+
+    // Process ExportList entries
+    if (decl.kind === 'ExportList') {
+      for (const entry of decl.names) {
+        const sym = scope.symbols.get(entry.name);
+        if (sym) {
+          exports.set(entry.name, sym);
+        }
+      }
     }
   }
 }

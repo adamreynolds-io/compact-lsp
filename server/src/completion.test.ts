@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { parse } from './parser';
 import { buildSymbolTable } from './symbols';
 import { getCompletions } from './completion';
+import { WorkspaceIndex } from './workspaceIndex';
+import { fsPathToUri } from './moduleResolution';
 
 function completions(source: string, line: number, column: number) {
   const result = parse(source);
@@ -189,6 +191,34 @@ describe('Completion Provider', () => {
       expect(ledgerItem).toBeDefined();
       expect(ledgerItem!.detail).toContain('ledger counter');
       expect(ledgerItem!.detail).toContain('Field');
+    });
+  });
+
+  describe('cross-file completion', () => {
+    function makeUri(name: string): string {
+      return fsPathToUri(`/project/src/${name}`);
+    }
+
+    it('completions include imported symbols with module detail', () => {
+      const index = new WorkspaceIndex();
+      const mathUri = makeUri('math.compact');
+      const mainUri = makeUri('main.compact');
+
+      const mathSrc = 'module MathUtils { export circuit add(x: Field, y: Field) : Field { } }';
+      const mainSrc = 'import { add } from MathUtils;\ncircuit bar() : Void {\n  \n}';
+
+      index.addFile(mathUri, mathSrc);
+      index.addFile(mainUri, mainSrc);
+      index.resolveFileImports(mainUri);
+
+      const mainEntry = index.getFileEntry(mainUri)!;
+      // Cursor inside bar() body at line 2, col 2
+      const items = getCompletions(mainEntry.parseResult, mainEntry.fileScope, 2, 2, index);
+
+      const addItem = items.find((c) => c.label === 'add');
+      expect(addItem).toBeDefined();
+      expect(addItem!.detail).toContain('circuit add');
+      expect(addItem!.detail).toContain('from MathUtils');
     });
   });
 });

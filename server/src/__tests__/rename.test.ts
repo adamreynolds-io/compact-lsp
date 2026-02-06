@@ -3,6 +3,8 @@ import { tokenize } from '../lexer';
 import { parse } from '../parser';
 import { buildSymbolTable } from '../symbols';
 import { prepareRename, getRenameEdits } from '../rename';
+import { WorkspaceIndex } from '../workspaceIndex';
+import { fsPathToUri } from '../moduleResolution';
 
 function prepare(source: string, line: number, column: number) {
   const parseResult = parse(source);
@@ -113,6 +115,86 @@ circuit foo(x: Field) : Field { return x; }`;
       // Built-in type reference — should still return edits for the reference occurrences
       // But prepareRename would reject this, so in practice this path isn't reachable
       expect(edits).toBeDefined();
+    });
+  });
+
+  describe('cross-file rename', () => {
+    function makeUri(name: string): string {
+      return fsPathToUri(`/project/src/${name}`);
+    }
+
+    it('rename exported symbol propagates to importing files', () => {
+      const index = new WorkspaceIndex();
+      const mathUri = makeUri('math.compact');
+      const mainUri = makeUri('main.compact');
+
+      const mathSrc = 'module MathUtils { export circuit add(x: Field, y: Field) : Field { } }';
+      const mainSrc = 'import { add } from MathUtils;\ncircuit bar() : Void { add; }';
+
+      index.addFile(mathUri, mathSrc);
+      index.addFile(mainUri, mainSrc);
+      index.resolveFileImports(mainUri);
+
+      // Rename 'add' at its declaration in math.compact
+      const mathEntry = index.getFileEntry(mathUri)!;
+      const mathTokens = tokenize(mathSrc);
+      const addCol = mathSrc.indexOf('add(');
+      const edits = getRenameEdits(
+        mathEntry.parseResult,
+        mathEntry.fileScope,
+        mathEntry.references,
+        0,
+        addCol,
+        mathTokens,
+        'sum',
+        index,
+        mathUri,
+      );
+
+      // Should have edits in both files
+      const crossFileEdits = edits.filter((e) => e.uri === mainUri);
+      expect(crossFileEdits.length).toBeGreaterThan(0);
+      for (const edit of edits) {
+        expect(edit.newText).toBe('sum');
+      }
+    });
+
+    it('rename alias does not propagate to source', () => {
+      const index = new WorkspaceIndex();
+      const mathUri = makeUri('math.compact');
+      const mainUri = makeUri('main.compact');
+
+      const mathSrc = 'module MathUtils { export circuit add(x: Field, y: Field) : Field { } }';
+      const mainSrc = 'import { add as sum } from MathUtils;\ncircuit bar() : Void { sum; }';
+
+      index.addFile(mathUri, mathSrc);
+      index.addFile(mainUri, mainSrc);
+      index.resolveFileImports(mainUri);
+
+      // Rename 'sum' (alias) in main.compact
+      const mainEntry = index.getFileEntry(mainUri)!;
+      const mainTokens = tokenize(mainSrc);
+      // 'sum' on line 1 at column 23
+      const edits = getRenameEdits(
+        mainEntry.parseResult,
+        mainEntry.fileScope,
+        mainEntry.references,
+        1,
+        23,
+        mainTokens,
+        'plus',
+        index,
+        mainUri,
+      );
+
+      // Should NOT have edits in math.compact
+      const sourceEdits = edits.filter((e) => e.uri === mathUri);
+      expect(sourceEdits.length).toBe(0);
+      // Should have local edits only
+      expect(edits.length).toBeGreaterThan(0);
+      for (const edit of edits) {
+        expect(edit.newText).toBe('plus');
+      }
     });
   });
 });

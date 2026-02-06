@@ -3,6 +3,8 @@ import { tokenize } from './lexer';
 import { parse } from './parser';
 import { buildSymbolTable } from './symbols';
 import { getHoverInfo } from './hover';
+import { WorkspaceIndex } from './workspaceIndex';
+import { fsPathToUri } from './moduleResolution';
 
 function hover(source: string, line: number, column: number) {
   const result = parse(source);
@@ -127,6 +129,52 @@ describe('Hover Provider', () => {
       // Hover at a position that doesn't have an identifier
       const result = hover(source, 0, 30); // on space/brace area
       expect(result).toBeUndefined();
+    });
+  });
+
+  describe('cross-file hover', () => {
+    function makeUri(name: string): string {
+      return fsPathToUri(`/project/src/${name}`);
+    }
+
+    it('hover on imported symbol shows source signature', () => {
+      const index = new WorkspaceIndex();
+      const mathUri = makeUri('math.compact');
+      const mainUri = makeUri('main.compact');
+
+      const mathSrc = 'module MathUtils { export circuit add(x: Field, y: Field) : Field { } }';
+      const mainSrc = 'import { add } from MathUtils;\ncircuit bar() : Void { add; }';
+
+      index.addFile(mathUri, mathSrc);
+      index.addFile(mainUri, mainSrc);
+      index.resolveFileImports(mainUri);
+
+      const mainEntry = index.getFileEntry(mainUri)!;
+      const tokens = tokenize(mainSrc);
+      // 'add' on line 1 at column 23
+      const result = getHoverInfo(mainEntry.parseResult, mainEntry.fileScope, 1, 23, tokens, index);
+
+      expect(result).toBeDefined();
+      expect(result!.contents).toContain('circuit add');
+      expect(result!.contents).toContain('x: Field');
+    });
+
+    it('hover on unresolvable import shows import-only info', () => {
+      const index = new WorkspaceIndex();
+      const mainUri = makeUri('main.compact');
+      const mainSrc = 'import { foo } from MyModule;\ncircuit bar() : Void { foo; }';
+
+      index.addFile(mainUri, mainSrc);
+      // Don't resolve imports — so resolvedUri/resolvedName are undefined
+      // The symbol won't have resolvedUri, so it falls through to regular hover
+
+      const mainEntry = index.getFileEntry(mainUri)!;
+      const tokens = tokenize(mainSrc);
+      // 'foo' on line 1 at column 23
+      const result = getHoverInfo(mainEntry.parseResult, mainEntry.fileScope, 1, 23, tokens, index);
+
+      // Without resolvedUri, it just shows the local symbol info
+      expect(result).toBeDefined();
     });
   });
 });

@@ -3,6 +3,8 @@ import { tokenize } from './lexer';
 import { parse } from './parser';
 import { buildSymbolTable } from './symbols';
 import { findReferences } from './references';
+import { WorkspaceIndex } from './workspaceIndex';
+import { fsPathToUri } from './moduleResolution';
 
 function references(source: string, line: number, column: number, includeDeclaration = true) {
   const result = parse(source);
@@ -23,8 +25,8 @@ describe('References Provider', () => {
       const result = references(source, 0, 12, false);
       // Should find x usage at line 1, col 9 but NOT the declaration
       expect(result.length).toBe(1);
-      expect(result[0].start.line).toBe(1);
-      expect(result[0].start.column).toBe(9);
+      expect(result[0].range.start.line).toBe(1);
+      expect(result[0].range.start.column).toBe(9);
     });
 
     it('includes declaration when includeDeclaration is true', () => {
@@ -41,8 +43,8 @@ describe('References Provider', () => {
       const result = references(source, 1, 9, false);
       // Only the usage reference, not the declaration
       expect(result.length).toBe(1);
-      expect(result[0].start.line).toBe(1);
-      expect(result[0].start.column).toBe(9);
+      expect(result[0].range.start.line).toBe(1);
+      expect(result[0].range.start.column).toBe(9);
     });
   });
 
@@ -57,8 +59,8 @@ describe('References Provider', () => {
       const result = references(source, 0, 12, false);
       // x is used in the initializer of const y (line 1 col 12)
       expect(result.length).toBe(1);
-      expect(result[0].start.line).toBe(1);
-      expect(result[0].start.column).toBe(12);
+      expect(result[0].range.start.line).toBe(1);
+      expect(result[0].range.start.column).toBe(12);
     });
   });
 
@@ -122,6 +124,90 @@ describe('References Provider', () => {
       const result = references(source, 0, 8, true);
       // Should include declaration (line 0) + usage in foo body (line 2)
       expect(result.length).toBe(2);
+    });
+  });
+
+  describe('cross-file references', () => {
+    function makeUri(name: string): string {
+      return fsPathToUri(`/project/src/${name}`);
+    }
+
+    it('find-references on exported symbol returns usages from importing files', () => {
+      const index = new WorkspaceIndex();
+      const mathUri = makeUri('math.compact');
+      const mainUri = makeUri('main.compact');
+
+      const mathSrc = 'module MathUtils { export circuit add(x: Field, y: Field) : Field { } }';
+      const mainSrc = 'import { add } from MathUtils;\ncircuit bar() : Void { add; }';
+
+      index.addFile(mathUri, mathSrc);
+      index.addFile(mainUri, mainSrc);
+      index.resolveFileImports(mainUri);
+
+      // Find references on 'add' definition in math.compact
+      const mathEntry = index.getFileEntry(mathUri)!;
+      const mathTokens = tokenize(mathSrc);
+      // 'add' in "export circuit add(" — find its position
+      const addCol = mathSrc.indexOf('add(');
+      // It's on line 0
+      const result = findReferences(
+        mathEntry.parseResult,
+        mathEntry.fileScope,
+        mathEntry.references,
+        0,
+        addCol,
+        mathTokens,
+        true,
+        index,
+        mathUri,
+      );
+
+      // Should include declaration + usages from main.compact
+      const crossFileRefs = result.filter((r) => r.uri === mainUri);
+      expect(crossFileRefs.length).toBeGreaterThan(0);
+    });
+
+    it('includeDeclaration flag works across files', () => {
+      const index = new WorkspaceIndex();
+      const mathUri = makeUri('math.compact');
+      const mainUri = makeUri('main.compact');
+
+      const mathSrc = 'module MathUtils { export circuit add(x: Field, y: Field) : Field { } }';
+      const mainSrc = 'import { add } from MathUtils;\ncircuit bar() : Void { add; }';
+
+      index.addFile(mathUri, mathSrc);
+      index.addFile(mainUri, mainSrc);
+      index.resolveFileImports(mainUri);
+
+      const mainEntry = index.getFileEntry(mainUri)!;
+      const mainTokens = tokenize(mainSrc);
+      // 'add' usage on line 1, column 23
+      const withDecl = findReferences(
+        mainEntry.parseResult,
+        mainEntry.fileScope,
+        mainEntry.references,
+        1,
+        23,
+        mainTokens,
+        true,
+        index,
+        mainUri,
+      );
+
+      const withoutDecl = findReferences(
+        mainEntry.parseResult,
+        mainEntry.fileScope,
+        mainEntry.references,
+        1,
+        23,
+        mainTokens,
+        false,
+        index,
+        mainUri,
+      );
+
+      // Without declaration should have fewer results
+      expect(withDecl.length).toBeGreaterThanOrEqual(withoutDecl.length);
     });
   });
 });

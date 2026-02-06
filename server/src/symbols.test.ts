@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { parse } from './parser';
-import { buildSymbolTable, resolveSymbol, createRootScope, formatSignature } from './symbols';
+import {
+  buildSymbolTable,
+  resolveSymbol,
+  createRootScope,
+  formatSignature,
+  getExportedSymbols,
+} from './symbols';
 
 describe('Symbol Table', () => {
   describe('declaration registration', () => {
@@ -277,6 +283,75 @@ describe('Symbol Table', () => {
       expect(arrowScope).toBeDefined();
       expect(arrowScope!.symbols.get('x')).toBeDefined();
       expect(arrowScope!.symbols.get('y')).toBeDefined();
+    });
+  });
+
+  describe('resolvedUri / resolvedName', () => {
+    it('non-imported symbols have resolvedUri and resolvedName as undefined', () => {
+      const { sourceFile } = parse('circuit add(x: Field) : Field { }');
+      const { fileScope } = buildSymbolTable(sourceFile);
+      const sym = fileScope.symbols.get('add')!;
+      expect(sym.resolvedUri).toBeUndefined();
+      expect(sym.resolvedName).toBeUndefined();
+    });
+
+    it('imported specifiers have resolvedUri and resolvedName as undefined before resolution', () => {
+      const { sourceFile } = parse('import { foo } from MyModule;');
+      const { fileScope } = buildSymbolTable(sourceFile);
+      const sym = fileScope.symbols.get('foo')!;
+      expect(sym.resolvedUri).toBeUndefined();
+      expect(sym.resolvedName).toBeUndefined();
+    });
+  });
+
+  describe('getExportedSymbols', () => {
+    it('finds exported circuit', () => {
+      const { sourceFile } = parse('export circuit add(x: Field) : Field { }');
+      const { fileScope } = buildSymbolTable(sourceFile);
+      const exports = getExportedSymbols(sourceFile, fileScope);
+      expect(exports.has('add')).toBe(true);
+      expect(exports.get('add')!.kind).toBe('circuit');
+    });
+
+    it('finds exported struct', () => {
+      const { sourceFile } = parse('export struct Point { x: Field; y: Field; }');
+      const { fileScope } = buildSymbolTable(sourceFile);
+      const exports = getExportedSymbols(sourceFile, fileScope);
+      expect(exports.has('Point')).toBe(true);
+    });
+
+    it('finds export list entries', () => {
+      const { sourceFile } = parse(
+        'circuit foo() : Field { }\ncircuit bar() : Field { }\nexport { foo, bar };',
+      );
+      const { fileScope } = buildSymbolTable(sourceFile);
+      const exports = getExportedSymbols(sourceFile, fileScope);
+      expect(exports.has('foo')).toBe(true);
+      expect(exports.has('bar')).toBe(true);
+    });
+
+    it('excludes non-exported symbol', () => {
+      const { sourceFile } = parse(
+        'circuit helper() : Void { }\nexport circuit add(x: Field) : Field { }',
+      );
+      const { fileScope } = buildSymbolTable(sourceFile);
+      const exports = getExportedSymbols(sourceFile, fileScope);
+      expect(exports.has('helper')).toBe(false);
+      expect(exports.has('add')).toBe(true);
+    });
+
+    it('finds exported ledger', () => {
+      const { sourceFile } = parse('export ledger counter : Field;');
+      const { fileScope } = buildSymbolTable(sourceFile);
+      const exports = getExportedSymbols(sourceFile, fileScope);
+      expect(exports.has('counter')).toBe(true);
+    });
+
+    it('finds exported new type', () => {
+      const { sourceFile } = parse('export new type MyBool = Boolean;');
+      const { fileScope } = buildSymbolTable(sourceFile);
+      const exports = getExportedSymbols(sourceFile, fileScope);
+      expect(exports.has('MyBool')).toBe(true);
     });
   });
 

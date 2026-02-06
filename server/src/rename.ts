@@ -3,6 +3,7 @@ import { SourceRange, ParseResult } from './ast';
 import { Scope, Reference, resolveSymbol } from './symbols';
 import { findReferences } from './references';
 import { findTokenAtPosition, findScopeForPosition } from './utils';
+import { WorkspaceIndex } from './workspaceIndex';
 
 export interface PrepareRenameResult {
   range: SourceRange;
@@ -12,6 +13,7 @@ export interface PrepareRenameResult {
 export interface RenameEdit {
   range: SourceRange;
   newText: string;
+  uri?: string;
 }
 
 export function prepareRename(
@@ -71,11 +73,45 @@ export function getRenameEdits(
   column: number,
   tokens: Token[],
   newName: string,
+  workspaceIndex?: WorkspaceIndex,
+  currentFileUri?: string,
 ): RenameEdit[] {
-  const ranges = findReferences(parseResult, fileScope, references, line, column, tokens, true);
+  // Determine the scope for this position
+  const token = findTokenAtPosition(tokens, line, column);
+  if (!token) return [];
 
-  return ranges.map((range) => ({
-    range,
+  const scope = findScopeForPosition(fileScope, line, column, parseResult.sourceFile);
+  const symbol = resolveSymbol(token.text, scope);
+  if (!symbol) return [];
+
+  // If the symbol is an import alias (has resolvedName different from name), only rename locally
+  const isAlias = symbol.resolvedName && symbol.resolvedName !== symbol.name;
+
+  if (isAlias || !workspaceIndex || !currentFileUri) {
+    // Local-only rename (alias or no workspace)
+    const refs = findReferences(parseResult, fileScope, references, line, column, tokens, true);
+    return refs.map((r) => ({
+      range: r.range,
+      newText: newName,
+    }));
+  }
+
+  // Cross-file rename for exported symbol
+  const refs = findReferences(
+    parseResult,
+    fileScope,
+    references,
+    line,
+    column,
+    tokens,
+    true,
+    workspaceIndex,
+    currentFileUri,
+  );
+
+  return refs.map((r) => ({
+    range: r.range,
     newText: newName,
+    uri: r.uri,
   }));
 }

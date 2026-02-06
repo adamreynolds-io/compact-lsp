@@ -2,9 +2,11 @@ import { Token, TokenKind } from './lexer';
 import { SourceRange, ParseResult } from './ast';
 import { Scope, Reference, resolveSymbol } from './symbols';
 import { findTokenAtPosition, findScopeForPosition } from './utils';
+import { WorkspaceIndex } from './workspaceIndex';
 
 export interface DefinitionResult {
   range: SourceRange;
+  uri?: string;
 }
 
 export function getDefinition(
@@ -14,6 +16,7 @@ export function getDefinition(
   line: number,
   column: number,
   tokens: Token[],
+  workspaceIndex?: WorkspaceIndex,
 ): DefinitionResult | undefined {
   // Find the token at position
   const token = findTokenAtPosition(tokens, line, column);
@@ -43,6 +46,20 @@ export function getDefinition(
   // Built-in types/functions have no source location
   if (symbol.kind === 'builtin-type' || symbol.kind === 'builtin-function') {
     return undefined;
+  }
+
+  // Cross-file: if the symbol has a resolved URI, jump to the source file
+  if (symbol.resolvedUri && symbol.resolvedName && workspaceIndex) {
+    const targetEntry = workspaceIndex.getFileEntry(symbol.resolvedUri);
+    if (targetEntry) {
+      const targetSym = targetEntry.exports.get(symbol.resolvedName);
+      if (targetSym) {
+        return {
+          range: targetSym.range,
+          uri: symbol.resolvedUri,
+        };
+      }
+    }
   }
 
   // Return the declaration's source range
