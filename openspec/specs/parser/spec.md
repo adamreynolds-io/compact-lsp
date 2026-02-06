@@ -1,4 +1,4 @@
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Lexer tokenizes Compact source
 The lexer SHALL tokenize Compact source text into a stream of tokens, each with a kind, text value, and source position (line, column, offset).
@@ -121,19 +121,27 @@ The parser SHALL parse type annotations appearing in declarations (parameter typ
 - **WHEN** a type annotation is `[Field, Boolean]`
 - **THEN** it is parsed as a tuple type with element types
 
-### Requirement: Parser skips circuit/constructor bodies in Phase 1
-The parser SHALL consume circuit and constructor bodies (delimited by `{ }`) without fully parsing the statements and expressions inside.
+### Requirement: Parser parses circuit and constructor bodies
+The parser SHALL parse circuit and constructor bodies (delimited by `{ }`) into full statement and expression AST nodes. On unrecoverable errors inside a body, the parser SHALL fall back to brace matching to consume the remaining body content.
 
-#### Scenario: Circuit body skipped
+#### Scenario: Circuit body parsed into statements
 - **WHEN** the source contains `circuit add(x: Field, y: Field) : Field { return x + y; }`
-- **THEN** the parser records the body span but does not produce detailed AST nodes for `return x + y`
+- **THEN** the parser produces a `CircuitDefinition` node whose body contains a `ReturnStatement` with a `BinaryExpression`
 
-#### Scenario: Nested braces in body
-- **WHEN** a circuit body contains nested blocks `{ if (cond) { ... } }`
-- **THEN** the parser correctly matches brace nesting and consumes the entire body
+#### Scenario: Constructor body parsed into statements
+- **WHEN** the source contains `constructor(x: Field) { const y = x; }`
+- **THEN** the parser produces a `ConstructorDeclaration` node whose body contains a `ConstStatement`
 
-### Requirement: Parser recovers from errors at declaration boundaries
-The parser SHALL attempt to recover from syntax errors by advancing to the next top-level declaration boundary.
+#### Scenario: Nested braces in body produce block statements
+- **WHEN** a circuit body contains `{ if (cond) { return x; } }`
+- **THEN** the parser produces an `IfStatement` with a nested block containing a `ReturnStatement`
+
+#### Scenario: Fallback to brace matching on deep error
+- **WHEN** the parser encounters unrecoverable syntax errors inside a body
+- **THEN** it falls back to brace matching, records an error, and continues parsing the next declaration
+
+### Requirement: Parser recovers from errors at declaration and statement boundaries
+The parser SHALL attempt to recover from syntax errors at both declaration boundaries (top-level) and statement boundaries (inside bodies, synchronizing at `;` or `}`).
 
 #### Scenario: Malformed declaration followed by valid one
 - **WHEN** the source contains a malformed circuit followed by a valid struct definition
@@ -142,6 +150,14 @@ The parser SHALL attempt to recover from syntax errors by advancing to the next 
 #### Scenario: Unexpected token at top level
 - **WHEN** the parser encounters an unexpected token at the top level
 - **THEN** it records an error diagnostic, skips tokens until a known declaration keyword, and continues parsing
+
+#### Scenario: Malformed statement followed by valid statement in body
+- **WHEN** a circuit body contains `@@@ invalid; return 42;`
+- **THEN** the parser records an error, synchronizes at `;`, and continues to parse `return 42;`
+
+#### Scenario: Missing semicolon recovery in body
+- **WHEN** a circuit body contains `const x = 1 return y;`
+- **THEN** the parser records an error for the missing semicolon and recovers to parse `return y;`
 
 ### Requirement: Parser records syntax errors with positions
 The parser SHALL record all syntax errors encountered during parsing, each with a message and source position range.
