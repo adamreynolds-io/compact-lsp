@@ -30,6 +30,11 @@ export const BUILTIN_DOCS: Record<string, string> = {
   createZswapInput: 'Creates an input note for a ZSwap transaction.',
   createZswapOutput: 'Creates an output note for a ZSwap transaction.',
 
+  // Built-in functions (0.18.0+)
+  left: 'Constructs the left variant of an Either type.',
+  right: 'Constructs the right variant of an Either type.',
+  burnAddress: 'Returns the zero/burn address as an Either<ZswapCoinPublicKey, ContractAddress>.',
+
   // Ledger ADT types
   Counter: 'A ledger counter that supports increment and decrement operations.',
   Set: 'A ledger set that stores unique elements.',
@@ -39,4 +44,10 @@ export const BUILTIN_DOCS: Record<string, string> = {
   HistoricMerkleTree: 'A ledger Merkle tree that preserves historical root hashes.',
   Cell: 'A ledger cell that stores a single value.',
   Kernel: 'The runtime kernel providing access to transaction context and operations.',
+
+  // Ledger ADT types (0.18.0+)
+  Either: 'A sum type representing a value that is either Left or Right.',
+  ZswapCoinPublicKey: 'A public key type for identifying transaction signers.',
+  ContractAddress: 'An address type identifying a deployed contract.',
+  Maybe: 'An optional type that may or may not contain a value.',
 };

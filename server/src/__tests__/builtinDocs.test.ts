@@ -32,6 +32,10 @@ const EXPECTED_BUILTINS = [
   'ownPublicKey',
   'createZswapInput',
   'createZswapOutput',
+  // Built-in functions (0.18.0+)
+  'left',
+  'right',
+  'burnAddress',
   // Ledger ADT types
   'Counter',
   'Set',
@@ -41,19 +45,24 @@ const EXPECTED_BUILTINS = [
   'HistoricMerkleTree',
   'Cell',
   'Kernel',
+  // Ledger ADT types (0.18.0+)
+  'Either',
+  'ZswapCoinPublicKey',
+  'ContractAddress',
+  'Maybe',
 ];
 
 describe('Built-in Documentation', () => {
-  it('has a non-empty description for all 32 built-ins', () => {
+  it('has a non-empty description for all built-ins', () => {
     for (const name of EXPECTED_BUILTINS) {
       expect(BUILTIN_DOCS[name], `Missing docs for ${name}`).toBeDefined();
       expect(BUILTIN_DOCS[name].length, `Empty docs for ${name}`).toBeGreaterThan(0);
     }
-    expect(EXPECTED_BUILTINS).toHaveLength(34);
+    expect(EXPECTED_BUILTINS).toHaveLength(41);
   });
 
-  it('populates documentation on SymbolInfo during createRootScope', () => {
-    const result = parse('');
+  it('populates documentation on SymbolInfo during createRootScope (0.18.0)', () => {
+    const result = parse('pragma language_version 0.18.0;');
     const { fileScope } = buildSymbolTable(result.sourceFile);
     // Walk up to root scope
     let root = fileScope;

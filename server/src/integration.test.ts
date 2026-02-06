@@ -328,6 +328,37 @@ circuit foo(x: Field) : Field {
       expect(labels).toContain('map');
     });
 
+    it('file with 0.18.0 pragma has new built-ins available', () => {
+      const source = `pragma language_version 0.18.0;
+circuit foo(x: Field) : Field {
+  return x;
+}`;
+      const result = parse(source);
+      const { fileScope } = buildSymbolTable(result.sourceFile);
+
+      // No version diagnostics for known version
+      const versionDiags = computeVersionDiagnostics(result.sourceFile);
+      expect(versionDiags).toHaveLength(0);
+
+      // Walk to root scope to check built-ins
+      let root = fileScope;
+      while (root.parent) root = root.parent;
+      expect(root.symbols.get('Either')).toBeDefined();
+      expect(root.symbols.get('left')).toBeDefined();
+      expect(root.symbols.get('right')).toBeDefined();
+      expect(root.symbols.get('burnAddress')).toBeDefined();
+      expect(root.symbols.get('ZswapCoinPublicKey')).toBeDefined();
+      expect(root.symbols.get('ContractAddress')).toBeDefined();
+      expect(root.symbols.get('Maybe')).toBeDefined();
+
+      // Completions include the new types/functions
+      const items = getCompletions(result, fileScope, 1, 40);
+      const labels = items.map((c) => c.label);
+      expect(labels).toContain('Either');
+      expect(labels).toContain('left');
+      expect(labels).toContain('burnAddress');
+    });
+
     it('file with >= pragma version gets informational diagnostic and correct behavior', () => {
       const source = `pragma language_version >= 0.10.0;
 circuit foo(x: Field) : Field {
@@ -348,6 +379,28 @@ circuit foo(x: Field) : Field {
       const pragmaHover = getHoverInfo(result, fileScope, 0, 10, tokens);
       expect(pragmaHover).toBeDefined();
       expect(pragmaHover!.contents).toContain('0.14.0');
+    });
+
+    it('>= 0.15.0 resolves to 0.18.0 with version-resolved diagnostic', () => {
+      const source = `pragma language_version >= 0.15.0;
+circuit foo(x: Field) : Field {
+  return x;
+}`;
+      const result = parse(source);
+      const { fileScope } = buildSymbolTable(result.sourceFile);
+
+      // Should get version-resolved diagnostic pointing to 0.18.0
+      const versionDiags = computeVersionDiagnostics(result.sourceFile);
+      expect(versionDiags).toHaveLength(1);
+      expect(versionDiags[0].code).toBe('version-resolved');
+      expect(versionDiags[0].severity).toBe('information');
+      expect(versionDiags[0].message).toContain('0.18.0');
+
+      // Root scope should have 0.18.0 built-ins
+      let root = fileScope;
+      while (root.parent) root = root.parent;
+      expect(root.symbols.get('Either')).toBeDefined();
+      expect(root.symbols.get('left')).toBeDefined();
     });
   });
 });

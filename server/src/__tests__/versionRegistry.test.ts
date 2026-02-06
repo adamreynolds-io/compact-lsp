@@ -84,5 +84,60 @@ describe('versionRegistry', () => {
       expect(adts).toContain('Set');
       expect(adts.length).toBe(8);
     });
+
+    it('contains version 0.18.0', () => {
+      expect(LANGUAGE_VERSIONS['0.18.0']).toBeDefined();
+      expect(isKnownVersion('0.18.0')).toBe(true);
+    });
+
+    it('0.18.0 has all 0.14.0 built-in types', () => {
+      const types = LANGUAGE_VERSIONS['0.18.0'].builtinTypes;
+      expect(types).toEqual(['Field', 'Boolean', 'Uint', 'Bytes', 'Vector', 'Opaque', 'Void']);
+    });
+
+    it('0.18.0 has 0.14.0 functions plus left, right, burnAddress', () => {
+      const funcs = LANGUAGE_VERSIONS['0.18.0'].builtinFunctions;
+      // All 0.14.0 functions
+      expect(funcs).toContain('map');
+      expect(funcs).toContain('fold');
+      expect(funcs).toContain('disclose');
+      // New in 0.18.0
+      expect(funcs).toContain('left');
+      expect(funcs).toContain('right');
+      expect(funcs).toContain('burnAddress');
+      expect(funcs.length).toBe(22);
+    });
+
+    it('0.18.0 has 0.14.0 ADTs plus Either, ZswapCoinPublicKey, ContractAddress, Maybe', () => {
+      const adts = LANGUAGE_VERSIONS['0.18.0'].builtinAdtTypes;
+      // All 0.14.0 ADTs
+      expect(adts).toContain('Counter');
+      expect(adts).toContain('Set');
+      // New in 0.18.0
+      expect(adts).toContain('Either');
+      expect(adts).toContain('ZswapCoinPublicKey');
+      expect(adts).toContain('ContractAddress');
+      expect(adts).toContain('Maybe');
+      expect(adts.length).toBe(12);
+    });
+  });
+
+  describe('version resolution with 0.18.0', () => {
+    it('>= 0.18.0 resolves exactly', () => {
+      const result = resolveVersion('0.18.0', '>=');
+      expect(result).toEqual({ effectiveVersion: '0.18.0', fallback: false });
+    });
+
+    it('>= 0.15.0 falls back to 0.18.0', () => {
+      const result = resolveVersion('0.15.0', '>=');
+      expect(result).toBeDefined();
+      expect(result!.effectiveVersion).toBe('0.18.0');
+      expect(result!.fallback).toBe(true);
+    });
+
+    it('exact 0.18.0 resolves', () => {
+      const result = resolveVersion('0.18.0', '=');
+      expect(result).toEqual({ effectiveVersion: '0.18.0', fallback: false });
+    });
   });
 });

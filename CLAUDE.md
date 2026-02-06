@@ -60,6 +60,7 @@ compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language
 - **Repositories:**
   - https://github.com/LFDT-Minokawa/compact (original)
   - https://github.com/midnightntwrk/compact (active development)
+- **Version Registry Maintenance:** Periodically check https://github.com/OpenZeppelin/compact-contracts for `pragma language_version` updates. If the contracts move to a newer version, add a corresponding entry to `server/src/versionRegistry.ts` with the appropriate built-in types, functions, and ADT types, and add documentation to `server/src/builtinDocs.ts`.
 
 ### LSP Concepts
 - LSP separates the editor (client) from language intelligence (server)
