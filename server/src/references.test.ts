@@ -88,6 +88,26 @@ describe('References Provider', () => {
     });
   });
 
+  describe('new type references', () => {
+    it('finds references for a new type declaration', () => {
+      // Line 0: new type MyBool = Boolean;
+      // Line 1: circuit foo() : Void { MyBool; }
+      const source = 'new type MyBool = Boolean;\ncircuit foo() : Void { MyBool; }';
+      // cursor on 'MyBool' declaration at line 0, col 9
+      const result = references(source, 0, 9, true);
+      expect(result.length).toBe(2); // declaration + 1 reference
+    });
+  });
+
+  describe('destructured binding references', () => {
+    it('finds references for tuple destructured variable', () => {
+      const source = 'circuit foo() : Void {\n  const [a, b] = pair;\n  a;\n}';
+      // cursor on 'a' at line 2, col 2
+      const result = references(source, 2, 2, true);
+      expect(result.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
   describe('circuit references from body', () => {
     it('finds references when a circuit is called from another circuit body', () => {
       // Line 0: circuit bar(y: Field) : Field { }

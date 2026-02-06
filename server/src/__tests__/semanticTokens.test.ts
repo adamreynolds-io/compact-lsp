@@ -163,6 +163,39 @@ describe('Semantic Tokens', () => {
     });
   });
 
+  describe('new syntax classification', () => {
+    it('classifies new keyword as keyword', () => {
+      const tok = findToken('new type MyBool = Boolean;', 'new');
+      expect(tok).toBeDefined();
+      expect(tok!.tokenType).toBe(typeIdx('keyword'));
+    });
+
+    it('classifies type keyword as keyword', () => {
+      const tok = findToken('new type MyBool = Boolean;', 'type');
+      expect(tok).toBeDefined();
+      expect(tok!.tokenType).toBe(typeIdx('keyword'));
+    });
+
+    it('classifies new type name as type', () => {
+      const source = 'new type MyBool = Boolean;\ncircuit foo() : Void { MyBool; }';
+      const tok = findToken(source, 'MyBool', 1);
+      expect(tok).toBeDefined();
+      expect(tok!.tokenType).toBe(typeIdx('type'));
+    });
+
+    it('classifies hex number literal as number', () => {
+      const numTok = findToken('circuit foo() : Field { return 0xFF; }', '0xFF');
+      expect(numTok).toBeDefined();
+      expect(numTok!.tokenType).toBe(typeIdx('number'));
+    });
+
+    it('classifies single-quoted string as string', () => {
+      const allTokens = tokens("#pragma version '1.0';");
+      const strTok = allTokens.find((t) => t.tokenType === typeIdx('string'));
+      expect(strTok).toBeDefined();
+    });
+  });
+
   describe('declaration modifier', () => {
     it('applies declaration modifier to circuit name at definition', () => {
       const source = 'circuit add(x: Field) : Field { return x; }';

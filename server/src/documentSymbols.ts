@@ -10,6 +10,8 @@ import {
   ConstDeclaration,
   ContractDeclaration,
   LedgerDeclaration,
+  NewTypeDeclaration,
+  ExportList,
   SourceRange,
   TypeNode,
   Parameter,
@@ -65,6 +67,10 @@ function declToSymbol(decl: Declaration): DocSymbol | undefined {
       return contractSymbol(decl);
     case 'LedgerDeclaration':
       return ledgerSymbol(decl);
+    case 'NewTypeDeclaration':
+      return newTypeSymbol(decl);
+    case 'ExportList':
+      return exportListSymbol(decl);
     default:
       return undefined;
   }
@@ -85,12 +91,18 @@ function nameSelectionRange(decl: { name: string; range: SourceRange }): SourceR
   };
 }
 
+function formatTypeArg(a: import('./ast').TypeArgument): string {
+  if (a.kind === 'NumberArgument') return a.value;
+  if (a.kind === 'RangeArgument') return `${a.low}..${a.high}`;
+  return formatTypeNode(a);
+}
+
 function formatTypeNode(t: TypeNode): string {
   switch (t.kind) {
     case 'TypeReference':
       return t.name;
     case 'ParameterizedType':
-      return `${t.name}<${t.args.map((a) => (a.kind === 'NumberArgument' ? a.value : formatTypeNode(a))).join(', ')}>`;
+      return `${t.name}<${t.args.map(formatTypeArg).join(', ')}>`;
     case 'TupleType':
       return `[${t.elements.map(formatTypeNode).join(', ')}]`;
   }
@@ -237,6 +249,30 @@ function ledgerSymbol(decl: LedgerDeclaration): DocSymbol {
     kind: DocSymbolKind.Variable,
     range: decl.range,
     selectionRange: nameSelectionRange(decl),
+    children: [],
+  };
+}
+
+function newTypeSymbol(decl: NewTypeDeclaration): DocSymbol {
+  const detail = formatTypeNode(decl.typeExpr);
+  return {
+    name: decl.name,
+    detail,
+    kind: DocSymbolKind.Variable,
+    range: decl.range,
+    selectionRange: nameSelectionRange(decl),
+    children: [],
+  };
+}
+
+function exportListSymbol(decl: ExportList): DocSymbol {
+  const detail = decl.names.map((n) => n.name).join(', ');
+  return {
+    name: 'export',
+    detail,
+    kind: DocSymbolKind.Module,
+    range: decl.range,
+    selectionRange: { start: decl.range.start, end: decl.range.start },
     children: [],
   };
 }

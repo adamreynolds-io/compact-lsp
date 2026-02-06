@@ -11,6 +11,8 @@ import {
   ConstructorDeclaration,
   ConstDeclaration,
   ContractDeclaration,
+  NewTypeDeclaration,
+  ImportDeclaration,
   SourceRange,
   Parameter,
   TypeNode,
@@ -59,7 +61,40 @@ export interface SymbolTableResult {
 }
 
 const BUILTIN_TYPES = ['Field', 'Boolean', 'Uint', 'Bytes', 'Vector', 'Opaque', 'Void'];
-const BUILTIN_FUNCTIONS = ['map', 'fold', 'disclose', 'pad', 'default'];
+
+const BUILTIN_FUNCTIONS = [
+  'map',
+  'fold',
+  'disclose',
+  'pad',
+  'slice',
+  'default',
+  'transientHash',
+  'transientCommit',
+  'persistentHash',
+  'persistentCommit',
+  'degradeToTransient',
+  'upgradeFromTransient',
+  'ecAdd',
+  'ecMul',
+  'ecMulGenerator',
+  'hashToCurve',
+  'ownPublicKey',
+  'createZswapInput',
+  'createZswapOutput',
+];
+
+// Ledger ADT types registered as known types for member completion
+const LEDGER_ADT_TYPES = [
+  'Counter',
+  'Set',
+  'Map',
+  'List',
+  'MerkleTree',
+  'HistoricMerkleTree',
+  'Cell',
+  'Kernel',
+];
 
 export function createRootScope(): Scope {
   const root: Scope = {
@@ -94,6 +129,16 @@ export function createRootScope(): Scope {
     });
   }
 
+  for (const name of LEDGER_ADT_TYPES) {
+    root.symbols.set(name, {
+      name,
+      kind: 'builtin-type',
+      declaration: undefined,
+      range: dummyRange,
+      scope: root,
+    });
+  }
+
   return root;
 }
 
@@ -118,6 +163,46 @@ function createChildScope(name: string, parent: Scope): Scope {
   };
   parent.children.push(child);
   return child;
+}
+
+function registerParams(params: Parameter[], scope: Scope): void {
+  for (const param of params) {
+    if (param.pattern) {
+      // Destructured parameter — register individual bindings
+      if (param.pattern.kind === 'TuplePattern') {
+        for (const elem of param.pattern.elements) {
+          if (elem !== null) {
+            scope.symbols.set(elem, {
+              name: elem,
+              kind: 'parameter',
+              declaration: param,
+              range: param.range,
+              scope,
+            });
+          }
+        }
+      } else if (param.pattern.kind === 'StructPattern') {
+        for (const field of param.pattern.fields) {
+          const name = field.alias || field.key;
+          scope.symbols.set(name, {
+            name,
+            kind: 'parameter',
+            declaration: param,
+            range: param.range,
+            scope,
+          });
+        }
+      }
+    } else {
+      scope.symbols.set(param.name, {
+        name: param.name,
+        kind: 'parameter',
+        declaration: param,
+        range: param.range,
+        scope,
+      });
+    }
+  }
 }
 
 function registerDeclaration(decl: Declaration, scope: Scope, references: Reference[]): void {
@@ -152,9 +237,15 @@ function registerDeclaration(decl: Declaration, scope: Scope, references: Refere
     case 'ContractDeclaration':
       registerContract(decl, scope);
       break;
-    case 'PragmaDeclaration':
+    case 'NewTypeDeclaration':
+      registerNewType(decl, scope);
+      break;
     case 'ImportDeclaration':
+      registerImport(decl, scope);
+      break;
+    case 'PragmaDeclaration':
     case 'IncludeDeclaration':
+    case 'ExportList':
     case 'ErrorNode':
       break;
   }
@@ -171,15 +262,7 @@ function registerCircuit(decl: CircuitDefinition, scope: Scope, references: Refe
 
   // Create scope for circuit body with parameters
   const circuitScope = createChildScope(decl.name, scope);
-  for (const param of decl.params) {
-    circuitScope.symbols.set(param.name, {
-      name: param.name,
-      kind: 'parameter',
-      declaration: param,
-      range: param.range,
-      scope: circuitScope,
-    });
-  }
+  registerParams(decl.params, circuitScope);
 
   // Walk the body statements
   walkStatements(decl.body, circuitScope, references);
@@ -256,15 +339,7 @@ function registerConstructor(
   references: Reference[],
 ): void {
   const ctorScope = createChildScope('<constructor>', scope);
-  for (const param of decl.params) {
-    ctorScope.symbols.set(param.name, {
-      name: param.name,
-      kind: 'parameter',
-      declaration: param,
-      range: param.range,
-      scope: ctorScope,
-    });
-  }
+  registerParams(decl.params, ctorScope);
 
   // Walk the body statements
   walkStatements(decl.body, ctorScope, references);
@@ -295,6 +370,34 @@ function registerContract(decl: ContractDeclaration, scope: Scope): void {
   }
 }
 
+function registerNewType(decl: NewTypeDeclaration, scope: Scope): void {
+  scope.symbols.set(decl.name, {
+    name: decl.name,
+    kind: 'type',
+    declaration: decl,
+    range: decl.range,
+    scope,
+  });
+}
+
+function registerImport(decl: ImportDeclaration, scope: Scope): void {
+  if (decl.specifiers) {
+    // Selective import: register each specifier (with alias) in file scope
+    for (const spec of decl.specifiers) {
+      const name = spec.alias || spec.name;
+      scope.symbols.set(name, {
+        name,
+        kind: 'module',
+        declaration: decl,
+        range: spec.range,
+        scope,
+      });
+    }
+  }
+  // For non-selective imports, we don't register anything in scope
+  // (the import just makes the module available)
+}
+
 function walkStatements(stmts: Statement[], scope: Scope, references: Reference[]): void {
   for (const stmt of stmts) {
     walkStatement(stmt, scope, references);
@@ -306,14 +409,43 @@ function walkStatement(stmt: Statement, scope: Scope, references: Reference[]): 
     case 'ConstStatement': {
       // Walk the initializer first (variable not yet in scope)
       walkExpression(stmt.initializer, scope, references);
-      // Register the variable in the current scope
-      scope.symbols.set(stmt.name, {
-        name: stmt.name,
-        kind: 'const',
-        declaration: undefined,
-        range: stmt.range,
-        scope,
-      });
+
+      if (stmt.pattern) {
+        // Destructured binding — register individual names
+        if (stmt.pattern.kind === 'TuplePattern') {
+          for (const elem of stmt.pattern.elements) {
+            if (elem !== null) {
+              scope.symbols.set(elem, {
+                name: elem,
+                kind: 'const',
+                declaration: undefined,
+                range: stmt.range,
+                scope,
+              });
+            }
+          }
+        } else if (stmt.pattern.kind === 'StructPattern') {
+          for (const field of stmt.pattern.fields) {
+            const name = field.alias || field.key;
+            scope.symbols.set(name, {
+              name,
+              kind: 'const',
+              declaration: undefined,
+              range: stmt.range,
+              scope,
+            });
+          }
+        }
+      } else {
+        // Register the variable in the current scope
+        scope.symbols.set(stmt.name, {
+          name: stmt.name,
+          kind: 'const',
+          declaration: undefined,
+          range: stmt.range,
+          scope,
+        });
+      }
       break;
     }
     case 'ReturnStatement': {
@@ -346,6 +478,9 @@ function walkStatement(stmt: Statement, scope: Scope, references: Reference[]): 
     }
     case 'AssertStatement': {
       walkExpression(stmt.condition, scope, references);
+      if (stmt.message) {
+        walkExpression(stmt.message, scope, references);
+      }
       break;
     }
     case 'ExpressionStatement': {
@@ -418,16 +553,15 @@ function walkExpression(expr: Expression, scope: Scope, references: Reference[])
     case 'ArrowFunction': {
       // Create a child scope for the arrow function with params
       const arrowScope = createChildScope('<arrow>', scope);
-      for (const param of expr.params) {
-        arrowScope.symbols.set(param.name, {
-          name: param.name,
-          kind: 'parameter',
-          declaration: param,
-          range: param.range,
-          scope: arrowScope,
-        });
+      registerParams(expr.params, arrowScope);
+
+      if (Array.isArray(expr.body)) {
+        // Block body arrow function
+        walkStatements(expr.body, arrowScope, references);
+      } else {
+        // Expression body
+        walkExpression(expr.body, arrowScope, references);
       }
-      walkExpression(expr.body, arrowScope, references);
       break;
     }
     case 'TupleLiteral': {
@@ -439,6 +573,19 @@ function walkExpression(expr: Expression, scope: Scope, references: Reference[])
     case 'StructConstruction': {
       for (const field of expr.fields) {
         walkExpression(field.value, scope, references);
+      }
+      if (expr.spread) {
+        walkExpression(expr.spread, scope, references);
+      }
+      break;
+    }
+    case 'SpreadExpression': {
+      walkExpression(expr.argument, scope, references);
+      break;
+    }
+    case 'BytesLiteral': {
+      for (const element of expr.elements) {
+        walkExpression(element, scope, references);
       }
       break;
     }
@@ -482,6 +629,8 @@ export function formatSignature(symbol: SymbolInfo): string {
       return formatEnumSignature(decl);
     case 'ConstDeclaration':
       return formatConstSignature(decl);
+    case 'NewTypeDeclaration':
+      return formatNewTypeSignature(decl);
     case 'Parameter':
       return formatParameterSignature(decl);
     default:
@@ -494,7 +643,11 @@ function formatTypeNode(t: TypeNode): string {
     case 'TypeReference':
       return t.name;
     case 'ParameterizedType':
-      return `${t.name}<${t.args.map((a) => (a.kind === 'NumberArgument' ? a.value : formatTypeNode(a))).join(', ')}>`;
+      return `${t.name}<${t.args.map((a) => {
+        if (a.kind === 'NumberArgument') return a.value;
+        if (a.kind === 'RangeArgument') return `${a.low}..${a.high}`;
+        return formatTypeNode(a);
+      }).join(', ')}>`;
     case 'TupleType':
       return `[${t.elements.map(formatTypeNode).join(', ')}]`;
   }
@@ -571,6 +724,15 @@ function formatConstSignature(decl: ConstDeclaration): string {
     return `const ${decl.name}: ${formatTypeNode(decl.typeAnnotation)}`;
   }
   return `const ${decl.name}`;
+}
+
+function formatNewTypeSignature(decl: NewTypeDeclaration): string {
+  let sig = 'new type ' + decl.name;
+  if (decl.generics.length > 0) {
+    sig += `<${decl.generics.join(', ')}>`;
+  }
+  sig += ` = ${formatTypeNode(decl.typeExpr)}`;
+  return sig;
 }
 
 function formatParameterSignature(param: Parameter): string {

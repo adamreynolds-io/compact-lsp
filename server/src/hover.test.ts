@@ -89,6 +89,23 @@ describe('Hover Provider', () => {
     });
   });
 
+  describe('new type hover', () => {
+    it('returns new type signature', () => {
+      const source = 'new type MyBool = Boolean;';
+      const result = hover(source, 0, 9); // on 'MyBool'
+      expect(result).toBeDefined();
+      expect(result!.contents).toContain('type');
+      expect(result!.contents).toContain('MyBool');
+    });
+
+    it('returns hover for selective import specifier', () => {
+      const source = 'import { foo } from MyModule;\ncircuit bar() : Void { foo; }';
+      const result = hover(source, 1, 23); // on 'foo' in body
+      expect(result).toBeDefined();
+      expect(result!.contents).toContain('foo');
+    });
+  });
+
   describe('no hover', () => {
     it('returns undefined for keywords', () => {
       const source = 'circuit add() : Field { }';

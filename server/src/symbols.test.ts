@@ -232,4 +232,87 @@ describe('Symbol Table', () => {
       expect(forScope!.symbols.get('i')).toBeDefined();
     });
   });
+
+  describe('new declaration types', () => {
+    it('registers new type declarations', () => {
+      const { sourceFile } = parse('new type MyBool = Boolean;');
+      const { fileScope } = buildSymbolTable(sourceFile);
+      const sym = fileScope.symbols.get('MyBool');
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('type');
+    });
+
+    it('registers selective import specifiers', () => {
+      const { sourceFile } = parse('import { foo, bar as baz } from MyModule;');
+      const { fileScope } = buildSymbolTable(sourceFile);
+      expect(fileScope.symbols.get('foo')).toBeDefined();
+      expect(fileScope.symbols.get('baz')).toBeDefined();
+      expect(fileScope.symbols.get('bar')).toBeUndefined(); // aliased, not registered under original
+    });
+
+    it('registers destructured bindings in const', () => {
+      const { sourceFile } = parse('circuit f() : Void { const [a, b] = pair; }');
+      const { fileScope } = buildSymbolTable(sourceFile);
+      const circuitScope = fileScope.children[0];
+      expect(circuitScope.symbols.get('a')).toBeDefined();
+      expect(circuitScope.symbols.get('b')).toBeDefined();
+    });
+
+    it('registers struct destructured bindings', () => {
+      const { sourceFile } = parse('circuit f() : Void { const {x, y: z} = point; }');
+      const { fileScope } = buildSymbolTable(sourceFile);
+      const circuitScope = fileScope.children[0];
+      expect(circuitScope.symbols.get('x')).toBeDefined();
+      expect(circuitScope.symbols.get('z')).toBeDefined(); // alias
+      expect(circuitScope.symbols.get('y')).toBeUndefined(); // not the alias
+    });
+
+    it('creates scope for block-body arrow function', () => {
+      const { sourceFile } = parse(
+        'circuit f() : Void { const a = (x: Field) => { const y = x; return y; }; }',
+      );
+      const { fileScope } = buildSymbolTable(sourceFile);
+      const circuitScope = fileScope.children[0];
+      const arrowScope = circuitScope.children.find((c) => c.name === '<arrow>');
+      expect(arrowScope).toBeDefined();
+      expect(arrowScope!.symbols.get('x')).toBeDefined();
+      expect(arrowScope!.symbols.get('y')).toBeDefined();
+    });
+  });
+
+  describe('expanded built-in registry', () => {
+    it('has all built-in functions', () => {
+      const rootScope = createRootScope();
+      const expectedFns = [
+        'map',
+        'fold',
+        'disclose',
+        'pad',
+        'slice',
+        'default',
+        'transientHash',
+        'persistentHash',
+        'ecAdd',
+        'ecMul',
+        'ecMulGenerator',
+        'hashToCurve',
+        'ownPublicKey',
+      ];
+      for (const name of expectedFns) {
+        const sym = rootScope.symbols.get(name);
+        expect(sym).toBeDefined();
+        expect(sym!.kind).toBe('builtin-function');
+      }
+    });
+
+    it('has ledger ADT types', () => {
+      const rootScope = createRootScope();
+      const expectedTypes = ['Counter', 'Set', 'Map', 'List', 'MerkleTree', 'Cell', 'Kernel'];
+      for (const name of expectedTypes) {
+        const sym = rootScope.symbols.get(name);
+        expect(sym).toBeDefined();
+        expect(sym!.kind).toBe('builtin-type');
+      }
+    });
+  });
 });

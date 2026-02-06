@@ -152,7 +152,11 @@ function formatTypeNode(t: TypeNode): string {
     case 'TypeReference':
       return t.name;
     case 'ParameterizedType':
-      return `${t.name}<${t.args.map((a) => (a.kind === 'NumberArgument' ? a.value : formatTypeNode(a))).join(', ')}>`;
+      return `${t.name}<${t.args.map((a) => {
+        if (a.kind === 'NumberArgument') return a.value;
+        if (a.kind === 'RangeArgument') return `${a.low}..${a.high}`;
+        return formatTypeNode(a);
+      }).join(', ')}>`;
     case 'TupleType':
       return `[${t.elements.map(formatTypeNode).join(', ')}]`;
   }

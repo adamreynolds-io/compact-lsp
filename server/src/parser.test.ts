@@ -14,9 +14,12 @@ import {
   PragmaDeclaration,
   ImportDeclaration,
   IncludeDeclaration,
+  NewTypeDeclaration,
+  ExportList,
   ParameterizedType,
   TupleType,
   TypeReference,
+  RangeArgument,
   BinaryExpression,
   UnaryExpression,
   ConditionalExpression,
@@ -30,6 +33,8 @@ import {
   CastExpression,
   ArrowFunction,
   AssignmentExpression,
+  SpreadExpression,
+  BytesLiteral,
   ReturnStatement,
   ConstStatement,
   IfStatement,
@@ -721,6 +726,258 @@ describe('Parser', () => {
       expect(ret.kind).toBe('ReturnStatement');
       const retVal = ret.value as LiteralExpression;
       expect(retVal.value).toBe('42');
+    });
+  });
+
+  describe('selective imports', () => {
+    it('parses import { name } from Module', () => {
+      const result = parse('import { foo } from MyModule;');
+      expect(result.errors).toHaveLength(0);
+      const decl = result.sourceFile.declarations[0] as ImportDeclaration;
+      expect(decl.kind).toBe('ImportDeclaration');
+      expect(decl.moduleName).toBe('MyModule');
+      expect(decl.specifiers).toHaveLength(1);
+      expect(decl.specifiers![0].name).toBe('foo');
+      expect(decl.specifiers![0].alias).toBeUndefined();
+    });
+
+    it('parses import { name as alias } from Module', () => {
+      const result = parse('import { foo as bar, baz } from MyModule;');
+      expect(result.errors).toHaveLength(0);
+      const decl = result.sourceFile.declarations[0] as ImportDeclaration;
+      expect(decl.specifiers).toHaveLength(2);
+      expect(decl.specifiers![0].name).toBe('foo');
+      expect(decl.specifiers![0].alias).toBe('bar');
+      expect(decl.specifiers![1].name).toBe('baz');
+    });
+
+    it('parses prefix import: import Module prefix P$', () => {
+      const result = parse('import MyModule prefix M$;');
+      expect(result.errors).toHaveLength(0);
+      const decl = result.sourceFile.declarations[0] as ImportDeclaration;
+      expect(decl.moduleName).toBe('MyModule');
+      expect(decl.prefix).toBe('M$');
+    });
+
+    it('parses string-path import', () => {
+      const result = parse('import "path/to/Module" prefix P$;');
+      expect(result.errors).toHaveLength(0);
+      const decl = result.sourceFile.declarations[0] as ImportDeclaration;
+      expect(decl.source).toBe('path/to/Module');
+      expect(decl.prefix).toBe('P$');
+    });
+  });
+
+  describe('export list', () => {
+    it('parses export { name1, name2 }', () => {
+      const result = parse('export { foo, bar };');
+      expect(result.errors).toHaveLength(0);
+      const decl = result.sourceFile.declarations[0] as ExportList;
+      expect(decl.kind).toBe('ExportList');
+      expect(decl.names).toHaveLength(2);
+      expect(decl.names[0].name).toBe('foo');
+      expect(decl.names[1].name).toBe('bar');
+    });
+  });
+
+  describe('new type declaration', () => {
+    it('parses new type Name = TypeExpr', () => {
+      const result = parse('new type MyBool = Boolean;');
+      expect(result.errors).toHaveLength(0);
+      const decl = result.sourceFile.declarations[0] as NewTypeDeclaration;
+      expect(decl.kind).toBe('NewTypeDeclaration');
+      expect(decl.name).toBe('MyBool');
+      expect((decl.typeExpr as TypeReference).name).toBe('Boolean');
+    });
+
+    it('parses export new type with generics', () => {
+      const result = parse('export new type Pair<#A, #B> = [A, B];');
+      expect(result.errors).toHaveLength(0);
+      const decl = result.sourceFile.declarations[0] as NewTypeDeclaration;
+      expect(decl.isExport).toBe(true);
+      expect(decl.name).toBe('Pair');
+      expect(decl.generics).toEqual(['A', 'B']);
+      expect(decl.typeExpr.kind).toBe('TupleType');
+    });
+  });
+
+  describe('generic type alias', () => {
+    it('parses type Name<#A> = TypeExpr', () => {
+      const result = parse('type Wrapper<#T> = T;');
+      expect(result.errors).toHaveLength(0);
+      const decl = result.sourceFile.declarations[0] as ConstDeclaration;
+      expect(decl.name).toBe('Wrapper');
+    });
+  });
+
+  describe('Bytes literal', () => {
+    it('parses Bytes[1, 2, 3]', () => {
+      const result = parse('circuit f() : Void { const a = Bytes[1, 2, 3]; }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      const stmt = circuit.body[0] as ConstStatement;
+      expect(stmt.initializer.kind).toBe('BytesLiteral');
+      const lit = stmt.initializer as BytesLiteral;
+      expect(lit.elements).toHaveLength(3);
+    });
+
+    it('parses empty Bytes[]', () => {
+      const result = parse('circuit f() : Void { const a = Bytes[]; }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      const stmt = circuit.body[0] as ConstStatement;
+      const lit = stmt.initializer as BytesLiteral;
+      expect(lit.elements).toHaveLength(0);
+    });
+  });
+
+  describe('spread expressions', () => {
+    it('parses spread in tuple literal', () => {
+      const result = parse('circuit f() : Void { const a = [...b, 1]; }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      const stmt = circuit.body[0] as ConstStatement;
+      const tuple = stmt.initializer as TupleLiteral;
+      expect(tuple.elements[0].kind).toBe('SpreadExpression');
+    });
+
+    it('parses spread in struct construction', () => {
+      const result = parse('circuit f() : Void { const a = S { ...s1, x: 1 }; }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      const stmt = circuit.body[0] as ConstStatement;
+      const struct = stmt.initializer as StructConstruction;
+      expect(struct.spread).toBeDefined();
+      expect(struct.spread!.kind).toBe('SpreadExpression');
+    });
+  });
+
+  describe('struct field shorthand', () => {
+    it('parses Point { x, y }', () => {
+      const result = parse('circuit f() : Void { const a = Point { x, y }; }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      const stmt = circuit.body[0] as ConstStatement;
+      const struct = stmt.initializer as StructConstruction;
+      expect(struct.fields).toHaveLength(2);
+      expect(struct.fields[0].isShorthand).toBe(true);
+      expect(struct.fields[0].name).toBe('x');
+      expect(struct.fields[1].isShorthand).toBe(true);
+    });
+
+    it('parses mixed shorthand and explicit', () => {
+      const result = parse('circuit f() : Void { const a = Point { x, y: z }; }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      const stmt = circuit.body[0] as ConstStatement;
+      const struct = stmt.initializer as StructConstruction;
+      expect(struct.fields[0].isShorthand).toBe(true);
+      expect(struct.fields[1].isShorthand).toBeUndefined();
+      expect(struct.fields[1].name).toBe('y');
+    });
+  });
+
+  describe('multiple const bindings', () => {
+    it('parses const a = 1, b = 2', () => {
+      const result = parse('circuit f() : Void { const a = 1, b = 2; }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      expect(circuit.body).toHaveLength(2);
+      expect((circuit.body[0] as ConstStatement).name).toBe('a');
+      expect((circuit.body[1] as ConstStatement).name).toBe('b');
+    });
+  });
+
+  describe('assert with message', () => {
+    it('parses assert(cond, "msg")', () => {
+      const result = parse('circuit f() : Void { assert(x == 0, "x must be zero"); }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      const stmt = circuit.body[0] as AssertStatement;
+      expect(stmt.message).toBeDefined();
+      expect((stmt.message as LiteralExpression).literalType).toBe('string');
+    });
+
+    it('parses assert without message', () => {
+      const result = parse('circuit f() : Void { assert(x == 0); }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      const stmt = circuit.body[0] as AssertStatement;
+      expect(stmt.message).toBeUndefined();
+    });
+  });
+
+  describe('arrow functions with block bodies', () => {
+    it('parses (x) => { return x; }', () => {
+      const result = parse('circuit f() : Void { const a = (x: Field) => { return x; }; }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      const stmt = circuit.body[0] as ConstStatement;
+      const arrow = stmt.initializer as ArrowFunction;
+      expect(Array.isArray(arrow.body)).toBe(true);
+      const body = arrow.body as ReturnStatement[];
+      expect(body).toHaveLength(1);
+      expect(body[0].kind).toBe('ReturnStatement');
+    });
+
+    it('expression body still works', () => {
+      const result = parse('circuit f() : Void { const a = (x: Field) => x + 1; }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      const stmt = circuit.body[0] as ConstStatement;
+      const arrow = stmt.initializer as ArrowFunction;
+      expect(Array.isArray(arrow.body)).toBe(false);
+    });
+  });
+
+  describe('range type arguments', () => {
+    it('parses Uint<0..4294967295>', () => {
+      const result = parse('circuit f(x: Uint<0..4294967295>) : Void { }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      const paramType = circuit.params[0].typeAnnotation as ParameterizedType;
+      expect(paramType.args[0].kind).toBe('RangeArgument');
+      const range = paramType.args[0] as RangeArgument;
+      expect(range.low).toBe('0');
+      expect(range.high).toBe('4294967295');
+    });
+  });
+
+  describe('destructuring', () => {
+    it('parses tuple destructuring: const [a, b] = expr', () => {
+      const result = parse('circuit f() : Void { const [a, b] = pair; }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      const stmt = circuit.body[0] as ConstStatement;
+      expect(stmt.pattern).toBeDefined();
+      expect(stmt.pattern!.kind).toBe('TuplePattern');
+      expect(stmt.pattern!.elements).toEqual(['a', 'b']);
+    });
+
+    it('parses struct destructuring: const {a, b: alias} = expr', () => {
+      const result = parse('circuit f() : Void { const {a, b: c} = point; }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      const stmt = circuit.body[0] as ConstStatement;
+      expect(stmt.pattern).toBeDefined();
+      expect(stmt.pattern!.kind).toBe('StructPattern');
+    });
+
+    it('parses skipped elements: const [x, , , y] = expr', () => {
+      const result = parse('circuit f() : Void { const [x, , , y] = tup; }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      const stmt = circuit.body[0] as ConstStatement;
+      expect(stmt.pattern!.kind).toBe('TuplePattern');
+      expect(stmt.pattern!.elements).toEqual(['x', null, null, 'y']);
+    });
+
+    it('parses destructuring in parameter position', () => {
+      const result = parse('circuit f([x, y]: [Field, Field]) : Void { }');
+      expect(result.errors).toHaveLength(0);
+      const circuit = result.sourceFile.declarations[0] as CircuitDefinition;
+      expect(circuit.params[0].pattern).toBeDefined();
+      expect(circuit.params[0].pattern!.kind).toBe('TuplePattern');
     });
   });
 });

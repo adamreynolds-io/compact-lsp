@@ -16,7 +16,10 @@ import {
   ContractDeclaration,
   PragmaDeclaration,
   ImportDeclaration,
+  ImportSpecifier,
   IncludeDeclaration,
+  NewTypeDeclaration,
+  ExportList,
   ErrorNode,
   TypeNode,
   TypeReference,
@@ -24,12 +27,16 @@ import {
   TupleType,
   TypeArgument,
   NumberArgument,
+  RangeArgument,
   Parameter,
   SourceRange,
   ParseError,
   ParseResult,
   Expression,
   Statement,
+  TuplePattern,
+  StructPattern,
+  DestructurePattern,
 } from './ast';
 
 const DECLARATION_KEYWORDS = new Set<TokenKind>([
@@ -49,6 +56,7 @@ const DECLARATION_KEYWORDS = new Set<TokenKind>([
   TokenKind.Import,
   TokenKind.Include,
   TokenKind.Type,
+  TokenKind.New,
 ]);
 
 // Precedence levels for Pratt parser (low to high)
@@ -168,6 +176,11 @@ class Parser {
 
     const kind = this.current().kind;
 
+    // Handle `export { ... }` as export list
+    if (isExport && this.check(TokenKind.OpenBrace)) {
+      return this.parseExportList(modStart);
+    }
+
     switch (kind) {
       case TokenKind.Circuit:
         return this.parseCircuit(isExport, isPure, modStart);
@@ -195,6 +208,8 @@ class Parser {
         return this.parseInclude(modStart);
       case TokenKind.Type:
         return this.parseTypeAlias(isExport, modStart);
+      case TokenKind.New:
+        return this.parseNewType(isExport, modStart);
       default:
         return this.recoverToNextDeclaration();
     }
@@ -546,6 +561,83 @@ class Parser {
     offset: number;
   }): ImportDeclaration {
     this.expect(TokenKind.Import);
+
+    // Selective import: import { name, name as alias } from Module;
+    if (this.check(TokenKind.OpenBrace)) {
+      return this.parseSelectiveImport(startPos);
+    }
+
+    // String-path import: import "path/to/Module" prefix P$;
+    if (this.check(TokenKind.StringLiteral)) {
+      const source = this.current().text.slice(1, -1); // strip quotes
+      this.advance();
+      let prefix: string | undefined;
+      if (this.check(TokenKind.Identifier) && this.current().text === 'prefix') {
+        this.advance(); // consume 'prefix'
+        prefix = this.expectIdentifier();
+      }
+      const endPos = this.current().pos;
+      this.expect(TokenKind.Semicolon);
+      return {
+        kind: 'ImportDeclaration',
+        moduleName: source,
+        source,
+        prefix,
+        range: { start: startPos, end: endPos },
+      };
+    }
+
+    // Standard or prefix import: import Module; or import Module prefix P$;
+    const moduleName = this.expectIdentifier();
+
+    let prefix: string | undefined;
+    if (this.check(TokenKind.Identifier) && this.current().text === 'prefix') {
+      this.advance(); // consume 'prefix'
+      prefix = this.expectIdentifier();
+    }
+
+    const endPos = this.current().pos;
+    this.expect(TokenKind.Semicolon);
+
+    return {
+      kind: 'ImportDeclaration',
+      moduleName,
+      prefix,
+      range: { start: startPos, end: endPos },
+    };
+  }
+
+  private parseSelectiveImport(startPos: {
+    line: number;
+    column: number;
+    offset: number;
+  }): ImportDeclaration {
+    this.expect(TokenKind.OpenBrace);
+    const specifiers: ImportSpecifier[] = [];
+
+    while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
+      const specStart = this.current().pos;
+      const name = this.expectIdentifier();
+      let alias: string | undefined;
+      if (this.check(TokenKind.As)) {
+        this.advance(); // consume 'as'
+        alias = this.expectIdentifier();
+      }
+      const specEnd = this.previousPos();
+      specifiers.push({ name, alias, range: { start: specStart, end: specEnd } });
+      if (this.check(TokenKind.Comma)) {
+        this.advance();
+      }
+    }
+    this.expect(TokenKind.CloseBrace);
+
+    // Expect 'from' (contextual keyword — treated as identifier)
+    if (this.check(TokenKind.Identifier) && this.current().text === 'from') {
+      this.advance();
+    } else {
+      this.expect(TokenKind.Identifier); // will emit error "Expected identifier"
+    }
+
     const moduleName = this.expectIdentifier();
     const endPos = this.current().pos;
     this.expect(TokenKind.Semicolon);
@@ -553,6 +645,35 @@ class Parser {
     return {
       kind: 'ImportDeclaration',
       moduleName,
+      specifiers,
+      range: { start: startPos, end: endPos },
+    };
+  }
+
+  private parseExportList(startPos: {
+    line: number;
+    column: number;
+    offset: number;
+  }): ExportList {
+    this.expect(TokenKind.OpenBrace);
+    const names: { name: string; range: SourceRange }[] = [];
+
+    while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
+      const nameStart = this.current().pos;
+      const name = this.expectIdentifier();
+      const nameEnd = this.previousPos();
+      names.push({ name, range: { start: nameStart, end: nameEnd } });
+      if (this.check(TokenKind.Comma)) {
+        this.advance();
+      }
+    }
+    this.expect(TokenKind.CloseBrace);
+    const endPos = this.current().pos;
+    this.expect(TokenKind.Semicolon);
+
+    return {
+      kind: 'ExportList',
+      names,
       range: { start: startPos, end: endPos },
     };
   }
@@ -584,9 +705,14 @@ class Parser {
     isExport: boolean,
     startPos: { line: number; column: number; offset: number },
   ): ConstDeclaration {
-    // type alias: `type Foo = Bar;` — treat as const for simplicity in POC
+    // type alias: `type Foo = Bar;` or `type Foo<#A, #B> = [A, B];`
     this.expect(TokenKind.Type);
     const name = this.expectIdentifier();
+
+    // Skip optional generics for type aliases: <#A, #B>
+    if (this.check(TokenKind.LessThan)) {
+      this.parseOptionalGenericsWithHash();
+    }
 
     let typeAnnotation: TypeNode | undefined;
     if (this.check(TokenKind.Equals)) {
@@ -604,6 +730,51 @@ class Parser {
       isExport,
       range: { start: startPos, end: endPos },
     };
+  }
+
+  private parseNewType(
+    isExport: boolean,
+    startPos: { line: number; column: number; offset: number },
+  ): NewTypeDeclaration {
+    this.expect(TokenKind.New);
+    this.expect(TokenKind.Type);
+    const name = this.expectIdentifier();
+    const generics = this.parseOptionalGenericsWithHash();
+
+    this.expect(TokenKind.Equals);
+    const typeExpr = this.parseType();
+
+    const endPos = this.current().pos;
+    this.expect(TokenKind.Semicolon);
+
+    return {
+      kind: 'NewTypeDeclaration',
+      name,
+      generics,
+      typeExpr,
+      isExport,
+      range: { start: startPos, end: endPos },
+    };
+  }
+
+  // Parse generics with # prefix: <#A, #B>
+  private parseOptionalGenericsWithHash(): string[] {
+    if (!this.check(TokenKind.LessThan)) return [];
+    this.advance(); // consume '<'
+
+    const generics: string[] = [];
+    while (!this.check(TokenKind.GreaterThan) && !this.isAtEnd()) {
+      if (this.check(TokenKind.Hash)) {
+        this.advance(); // consume '#'
+      }
+      generics.push(this.expectIdentifierOrType());
+      if (this.check(TokenKind.Comma)) {
+        this.advance();
+      }
+    }
+
+    this.expect(TokenKind.GreaterThan);
+    return generics;
   }
 
   // Type parsing
@@ -640,11 +811,24 @@ class Parser {
         const numStart = this.current().pos;
         const value = this.current().text;
         this.advance();
-        args.push({
-          kind: 'NumberArgument',
-          value,
-          range: { start: numStart, end: this.previousPos() },
-        } as NumberArgument);
+        // Check for range: m..n
+        if (this.check(TokenKind.DotDot)) {
+          this.advance(); // consume '..'
+          const highValue = this.current().text;
+          this.advance();
+          args.push({
+            kind: 'RangeArgument',
+            low: value,
+            high: highValue,
+            range: { start: numStart, end: this.previousPos() },
+          } as RangeArgument);
+        } else {
+          args.push({
+            kind: 'NumberArgument',
+            value,
+            range: { start: numStart, end: this.previousPos() },
+          } as NumberArgument);
+        }
       } else {
         args.push(this.parseType());
       }
@@ -695,21 +879,53 @@ class Parser {
     const params: Parameter[] = [];
     while (!this.check(TokenKind.CloseParen) && !this.isAtEnd()) {
       const paramStart = this.current().pos;
-      const paramName = this.expectIdentifier();
 
-      let typeAnnotation: TypeNode | undefined;
-      if (this.check(TokenKind.Colon)) {
-        this.advance();
-        typeAnnotation = this.parseType();
+      // Destructured parameter: [x, y] or {a, b}
+      if (this.check(TokenKind.OpenBracket)) {
+        const pattern = this.parseParamTuplePattern();
+        let typeAnnotation: TypeNode | undefined;
+        if (this.check(TokenKind.Colon)) {
+          this.advance();
+          typeAnnotation = this.parseType();
+        }
+        const paramEnd = this.previousPos();
+        params.push({
+          kind: 'Parameter',
+          name: '<destructure>',
+          pattern,
+          typeAnnotation,
+          range: { start: paramStart, end: paramEnd },
+        });
+      } else if (this.check(TokenKind.OpenBrace)) {
+        const pattern = this.parseParamStructPattern();
+        let typeAnnotation: TypeNode | undefined;
+        if (this.check(TokenKind.Colon)) {
+          this.advance();
+          typeAnnotation = this.parseType();
+        }
+        const paramEnd = this.previousPos();
+        params.push({
+          kind: 'Parameter',
+          name: '<destructure>',
+          pattern,
+          typeAnnotation,
+          range: { start: paramStart, end: paramEnd },
+        });
+      } else {
+        const paramName = this.expectIdentifier();
+        let typeAnnotation: TypeNode | undefined;
+        if (this.check(TokenKind.Colon)) {
+          this.advance();
+          typeAnnotation = this.parseType();
+        }
+        const paramEnd = this.previousPos();
+        params.push({
+          kind: 'Parameter',
+          name: paramName,
+          typeAnnotation,
+          range: { start: paramStart, end: paramEnd },
+        });
       }
-
-      const paramEnd = this.previousPos();
-      params.push({
-        kind: 'Parameter',
-        name: paramName,
-        typeAnnotation,
-        range: { start: paramStart, end: paramEnd },
-      });
 
       if (this.check(TokenKind.Comma)) {
         this.advance();
@@ -718,6 +934,46 @@ class Parser {
 
     this.expect(TokenKind.CloseParen);
     return params;
+  }
+
+  private parseParamTuplePattern(): TuplePattern {
+    const start = this.current().pos;
+    this.expect(TokenKind.OpenBracket);
+    const elements: (string | null)[] = [];
+    while (!this.check(TokenKind.CloseBracket) && !this.isAtEnd()) {
+      if (this.check(TokenKind.Comma)) {
+        elements.push(null);
+      } else {
+        elements.push(this.expectIdentifier());
+      }
+      if (this.check(TokenKind.Comma)) {
+        this.advance();
+      }
+    }
+    const end = this.current().pos;
+    this.expect(TokenKind.CloseBracket);
+    return { kind: 'TuplePattern', elements, range: { start, end } };
+  }
+
+  private parseParamStructPattern(): StructPattern {
+    const start = this.current().pos;
+    this.expect(TokenKind.OpenBrace);
+    const fields: { key: string; alias?: string }[] = [];
+    while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
+      const key = this.expectIdentifier();
+      let alias: string | undefined;
+      if (this.check(TokenKind.Colon)) {
+        this.advance();
+        alias = this.expectIdentifier();
+      }
+      fields.push({ key, alias });
+      if (this.check(TokenKind.Comma)) {
+        this.advance();
+      }
+    }
+    const end = this.current().pos;
+    this.expect(TokenKind.CloseBrace);
+    return { kind: 'StructPattern', fields, range: { start, end } };
   }
 
   // Generics parsing
@@ -737,6 +993,17 @@ class Parser {
     return generics;
   }
 
+  private collectStatement(statements: Statement[]): void {
+    const result = this.parseStatement();
+    if (result) {
+      if (Array.isArray(result)) {
+        statements.push(...result);
+      } else {
+        statements.push(result);
+      }
+    }
+  }
+
   // Body parsing — replaces skipBody for circuit and constructor bodies
   private parseBody(): { bodyRange: SourceRange | undefined; statements: Statement[] } {
     if (!this.check(TokenKind.OpenBrace)) {
@@ -749,10 +1016,7 @@ class Parser {
     const statements: Statement[] = [];
     try {
       while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
-        const stmt = this.parseStatement();
-        if (stmt) {
-          statements.push(stmt);
-        }
+        this.collectStatement(statements);
       }
     } catch {
       // Fallback to brace matching on unrecoverable error
@@ -810,7 +1074,7 @@ class Parser {
   }
 
   // Statement parsing
-  private parseStatement(): Statement | null {
+  private parseStatement(): Statement | Statement[] | null {
     const startPos = this.current().pos;
 
     try {
@@ -836,9 +1100,48 @@ class Parser {
     }
   }
 
-  private parseConstStatement(): Statement {
+  private parseConstStatement(): Statement | Statement[] {
     const startPos = this.current().pos;
     this.expect(TokenKind.Const);
+
+    const bindings: Statement[] = [];
+    // Parse first binding
+    bindings.push(this.parseConstBinding(startPos));
+
+    // Parse additional bindings separated by commas: const a = 1, b = 2;
+    while (this.check(TokenKind.Comma)) {
+      this.advance(); // consume ','
+      const bindStart = this.current().pos;
+      bindings.push(this.parseConstBinding(bindStart));
+    }
+
+    const endPos = this.current().pos;
+    this.expect(TokenKind.Semicolon);
+
+    // Update ranges to include the semicolon
+    for (const binding of bindings) {
+      binding.range.end = endPos;
+    }
+
+    if (bindings.length === 1) {
+      return bindings[0];
+    }
+    return bindings;
+  }
+
+  private parseConstBinding(startPos: {
+    line: number;
+    column: number;
+    offset: number;
+  }): Statement {
+    // Check for destructuring: [a, b] or {a, b}
+    if (this.check(TokenKind.OpenBracket)) {
+      return this.parseTupleDestructuring(startPos);
+    }
+    if (this.check(TokenKind.OpenBrace)) {
+      return this.parseStructDestructuring(startPos);
+    }
+
     const name = this.expectIdentifier();
 
     let typeAnnotation: TypeNode | undefined;
@@ -849,15 +1152,110 @@ class Parser {
 
     this.expect(TokenKind.Equals);
     const initializer = this.parseExpression(Precedence.None);
-    const endPos = this.current().pos;
-    this.expect(TokenKind.Semicolon);
 
     return {
       kind: 'ConstStatement',
       name,
       typeAnnotation,
       initializer,
-      range: { start: startPos, end: endPos },
+      range: { start: startPos, end: initializer.range.end },
+    };
+  }
+
+  private parseTupleDestructuring(startPos: {
+    line: number;
+    column: number;
+    offset: number;
+  }): Statement {
+    const patternStart = this.current().pos;
+    this.expect(TokenKind.OpenBracket);
+    const elements: (string | null)[] = [];
+
+    while (!this.check(TokenKind.CloseBracket) && !this.isAtEnd()) {
+      if (this.check(TokenKind.Comma)) {
+        // Skipped element
+        elements.push(null);
+      } else {
+        elements.push(this.expectIdentifier());
+      }
+      if (this.check(TokenKind.Comma)) {
+        this.advance();
+      }
+    }
+    const patternEnd = this.current().pos;
+    this.expect(TokenKind.CloseBracket);
+
+    const pattern: TuplePattern = {
+      kind: 'TuplePattern',
+      elements,
+      range: { start: patternStart, end: patternEnd },
+    };
+
+    let typeAnnotation: TypeNode | undefined;
+    if (this.check(TokenKind.Colon)) {
+      this.advance();
+      typeAnnotation = this.parseType();
+    }
+
+    this.expect(TokenKind.Equals);
+    const initializer = this.parseExpression(Precedence.None);
+
+    return {
+      kind: 'ConstStatement',
+      name: '<destructure>',
+      pattern,
+      typeAnnotation,
+      initializer,
+      range: { start: startPos, end: initializer.range.end },
+    };
+  }
+
+  private parseStructDestructuring(startPos: {
+    line: number;
+    column: number;
+    offset: number;
+  }): Statement {
+    const patternStart = this.current().pos;
+    this.expect(TokenKind.OpenBrace);
+    const fields: { key: string; alias?: string }[] = [];
+
+    while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
+      const key = this.expectIdentifier();
+      let alias: string | undefined;
+      if (this.check(TokenKind.Colon)) {
+        this.advance();
+        alias = this.expectIdentifier();
+      }
+      fields.push({ key, alias });
+      if (this.check(TokenKind.Comma)) {
+        this.advance();
+      }
+    }
+    const patternEnd = this.current().pos;
+    this.expect(TokenKind.CloseBrace);
+
+    const pattern: StructPattern = {
+      kind: 'StructPattern',
+      fields,
+      range: { start: patternStart, end: patternEnd },
+    };
+
+    let typeAnnotation: TypeNode | undefined;
+    if (this.check(TokenKind.Colon)) {
+      this.advance();
+      typeAnnotation = this.parseType();
+    }
+
+    this.expect(TokenKind.Equals);
+    const initializer = this.parseExpression(Precedence.None);
+
+    return {
+      kind: 'ConstStatement',
+      name: '<destructure>',
+      pattern,
+      typeAnnotation,
+      initializer,
+      range: { start: startPos, end: initializer.range.end },
     };
   }
 
@@ -890,8 +1288,7 @@ class Parser {
     this.expect(TokenKind.OpenBrace);
     const consequent: Statement[] = [];
     while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
-      const stmt = this.parseStatement();
-      if (stmt) consequent.push(stmt);
+      this.collectStatement(consequent);
     }
     this.expect(TokenKind.CloseBrace);
 
@@ -906,8 +1303,7 @@ class Parser {
         this.expect(TokenKind.OpenBrace);
         alternate = [];
         while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
-          const stmt = this.parseStatement();
-          if (stmt) alternate.push(stmt);
+          this.collectStatement(alternate);
         }
         this.expect(TokenKind.CloseBrace);
       }
@@ -938,8 +1334,7 @@ class Parser {
     this.expect(TokenKind.OpenBrace);
     const body: Statement[] = [];
     while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
-      const stmt = this.parseStatement();
-      if (stmt) body.push(stmt);
+      this.collectStatement(body);
     }
     this.expect(TokenKind.CloseBrace);
 
@@ -958,6 +1353,13 @@ class Parser {
     this.expect(TokenKind.Assert);
     this.expect(TokenKind.OpenParen);
     const condition = this.parseExpression(Precedence.None);
+
+    let message: Expression | undefined;
+    if (this.check(TokenKind.Comma)) {
+      this.advance(); // consume ','
+      message = this.parseExpression(Precedence.None);
+    }
+
     this.expect(TokenKind.CloseParen);
     const endPos = this.current().pos;
     this.expect(TokenKind.Semicolon);
@@ -965,6 +1367,7 @@ class Parser {
     return {
       kind: 'AssertStatement',
       condition,
+      message,
       range: { start: startPos, end: endPos },
     };
   }
@@ -974,8 +1377,7 @@ class Parser {
     this.expect(TokenKind.OpenBrace);
     const statements: Statement[] = [];
     while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
-      const stmt = this.parseStatement();
-      if (stmt) statements.push(stmt);
+      this.collectStatement(statements);
     }
     const endPos = this.current().pos;
     this.expect(TokenKind.CloseBrace);
@@ -1051,6 +1453,10 @@ class Parser {
     switch (this.current().kind) {
       case TokenKind.Identifier: {
         const token = this.advance();
+        // Bytes[...] literal
+        if (token.text === 'Bytes' && this.check(TokenKind.OpenBracket)) {
+          return this.parseBytesLiteral(startPos);
+        }
         const identExpr: Expression = {
           kind: 'IdentifierExpression',
           name: token.text,
@@ -1072,6 +1478,10 @@ class Parser {
 
       case TokenKind.TypeKeyword: {
         const token = this.advance();
+        // Bytes[...] literal
+        if (token.text === 'Bytes' && this.check(TokenKind.OpenBracket)) {
+          return this.parseBytesLiteral(startPos);
+        }
         return {
           kind: 'IdentifierExpression',
           name: token.text,
@@ -1151,6 +1561,17 @@ class Parser {
       case TokenKind.OpenParen: {
         // Could be parenthesized expression or arrow function
         return this.parseParenExprOrArrow();
+      }
+
+      case TokenKind.Ellipsis: {
+        // Spread expression: ...expr
+        this.advance();
+        const argument = this.parseExpression(Precedence.Unary);
+        return {
+          kind: 'SpreadExpression',
+          argument,
+          range: { start: startPos, end: argument.range.end },
+        };
       }
 
       case TokenKind.OpenBracket: {
@@ -1308,13 +1729,22 @@ class Parser {
       return true;
     }
 
-    // Check for identifier : pattern
+    // Spread in struct construction: S { ...expr }
+    if (this.check(TokenKind.Ellipsis)) {
+      this.pos = saved;
+      return true;
+    }
+
+    // Check for identifier followed by : (explicit) or , or } (shorthand)
     const isIdent = this.check(TokenKind.Identifier) || this.check(TokenKind.TypeKeyword);
     if (isIdent) {
       this.advance();
-      const isColon = this.check(TokenKind.Colon);
+      const isStructLike =
+        this.check(TokenKind.Colon) ||
+        this.check(TokenKind.Comma) ||
+        this.check(TokenKind.CloseBrace);
       this.pos = saved;
-      return isColon;
+      return isStructLike;
     }
 
     this.pos = saved;
@@ -1326,19 +1756,55 @@ class Parser {
     startPos: { line: number; column: number; offset: number },
   ): Expression {
     this.expect(TokenKind.OpenBrace);
-    const fields: { name: string; value: Expression; range: SourceRange }[] = [];
+    const fields: { name: string; value: Expression; isShorthand?: boolean; range: SourceRange }[] =
+      [];
+    let spread: Expression | undefined;
 
     while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
+      // Spread in struct: ...expr
+      if (this.check(TokenKind.Ellipsis)) {
+        const spreadStart = this.current().pos;
+        this.advance(); // consume '...'
+        const arg = this.parseExpression(Precedence.None);
+        spread = {
+          kind: 'SpreadExpression',
+          argument: arg,
+          range: { start: spreadStart, end: arg.range.end },
+        };
+        if (this.check(TokenKind.Comma)) {
+          this.advance();
+        }
+        continue;
+      }
+
       const fieldStart = this.current().pos;
       const fieldName = this.expectIdentifier();
-      this.expect(TokenKind.Colon);
-      const value = this.parseExpression(Precedence.None);
-      const fieldEnd = value.range.end;
-      fields.push({
-        name: fieldName,
-        value,
-        range: { start: fieldStart, end: fieldEnd },
-      });
+
+      if (this.check(TokenKind.Colon)) {
+        // Explicit: field: value
+        this.advance();
+        const value = this.parseExpression(Precedence.None);
+        const fieldEnd = value.range.end;
+        fields.push({
+          name: fieldName,
+          value,
+          range: { start: fieldStart, end: fieldEnd },
+        });
+      } else {
+        // Shorthand: field (equivalent to field: field)
+        const fieldEnd = this.previousPos();
+        fields.push({
+          name: fieldName,
+          value: {
+            kind: 'IdentifierExpression',
+            name: fieldName,
+            range: { start: fieldStart, end: fieldEnd },
+          },
+          isShorthand: true,
+          range: { start: fieldStart, end: fieldEnd },
+        });
+      }
+
       if (this.check(TokenKind.Comma)) {
         this.advance();
       }
@@ -1351,6 +1817,7 @@ class Parser {
       kind: 'StructConstruction',
       structName: name,
       fields,
+      spread,
       range: {
         start: startPos,
         end: { line: endPos.line, column: endPos.column + 1, offset: endPos.offset + 1 },
@@ -1384,6 +1851,51 @@ class Parser {
       const isArrow = this.check(TokenKind.Arrow);
       this.pos = saved;
       return isArrow;
+    }
+
+    // Destructured parameter: ([x, y]: ...) => ... or ({a, b}: ...) => ...
+    if (this.check(TokenKind.OpenBracket) || this.check(TokenKind.OpenBrace)) {
+      // Skip to matching close bracket/brace, then check for ) =>
+      let depth = 1;
+      const open = this.current().kind;
+      const close =
+        open === TokenKind.OpenBracket ? TokenKind.CloseBracket : TokenKind.CloseBrace;
+      this.advance();
+      while (depth > 0 && !this.isAtEnd()) {
+        if (this.current().kind === open) depth++;
+        if (this.current().kind === close) depth--;
+        if (depth > 0) this.advance();
+      }
+      if (depth === 0) {
+        this.advance(); // skip close bracket/brace
+        // Now skip optional : Type
+        if (this.check(TokenKind.Colon)) {
+          // Skip to ) or ,
+          while (
+            !this.check(TokenKind.CloseParen) &&
+            !this.check(TokenKind.Comma) &&
+            !this.isAtEnd()
+          ) {
+            this.advance();
+          }
+        }
+        // Skip to closing paren
+        let parenDepth = 1;
+        this.pos = saved + 1;
+        while (parenDepth > 0 && !this.isAtEnd()) {
+          if (this.check(TokenKind.OpenParen)) parenDepth++;
+          if (this.check(TokenKind.CloseParen)) parenDepth--;
+          if (parenDepth > 0) this.advance();
+        }
+        if (this.check(TokenKind.CloseParen)) {
+          this.advance();
+          const isArrow = this.check(TokenKind.Arrow);
+          this.pos = saved;
+          return isArrow;
+        }
+      }
+      this.pos = saved;
+      return false;
     }
 
     // (ident: Type, ...) => ... is arrow
@@ -1424,8 +1936,29 @@ class Parser {
   }): Expression {
     const params = this.parseParameterList();
     this.expect(TokenKind.Arrow);
-    const body = this.parseExpression(Precedence.None);
 
+    // Block body: (x) => { stmts; }
+    if (this.check(TokenKind.OpenBrace)) {
+      const bodyStart = this.current().pos;
+      this.advance(); // consume '{'
+      const statements: Statement[] = [];
+      while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
+        this.collectStatement(statements);
+      }
+      const endPos = this.current().pos;
+      if (this.check(TokenKind.CloseBrace)) {
+        this.advance();
+      }
+      return {
+        kind: 'ArrowFunction',
+        params,
+        body: statements,
+        range: { start: startPos, end: endPos },
+      };
+    }
+
+    // Expression body: (x) => expr
+    const body = this.parseExpression(Precedence.None);
     return {
       kind: 'ArrowFunction',
       params,
@@ -1451,6 +1984,34 @@ class Parser {
 
     return {
       kind: 'TupleLiteral',
+      elements,
+      range: {
+        start: startPos,
+        end: { line: endPos.line, column: endPos.column + 1, offset: endPos.offset + 1 },
+      },
+    };
+  }
+
+  private parseBytesLiteral(startPos: {
+    line: number;
+    column: number;
+    offset: number;
+  }): Expression {
+    this.expect(TokenKind.OpenBracket);
+    const elements: Expression[] = [];
+
+    while (!this.check(TokenKind.CloseBracket) && !this.isAtEnd()) {
+      elements.push(this.parseExpression(Precedence.None));
+      if (this.check(TokenKind.Comma)) {
+        this.advance();
+      }
+    }
+
+    const endPos = this.current().pos;
+    this.expect(TokenKind.CloseBracket);
+
+    return {
+      kind: 'BytesLiteral',
       elements,
       range: {
         start: startPos,

@@ -121,6 +121,39 @@ describe('Document Symbols', () => {
     });
   });
 
+  describe('new declaration types', () => {
+    it('returns new type as Variable', () => {
+      const syms = symbols('new type MyBool = Boolean;');
+      expect(syms).toHaveLength(1);
+      expect(syms[0].name).toBe('MyBool');
+      expect(syms[0].kind).toBe(DocSymbolKind.Variable);
+      expect(syms[0].detail).toBe('Boolean');
+    });
+
+    it('returns export list as Module', () => {
+      const syms = symbols('export { foo, bar };');
+      expect(syms).toHaveLength(1);
+      expect(syms[0].name).toBe('export');
+      expect(syms[0].kind).toBe(DocSymbolKind.Module);
+      expect(syms[0].detail).toContain('foo');
+      expect(syms[0].detail).toContain('bar');
+    });
+
+    it('handles new type with parameterized type expression', () => {
+      const syms = symbols('new type SmallUint = Uint<8>;');
+      expect(syms).toHaveLength(1);
+      expect(syms[0].name).toBe('SmallUint');
+      expect(syms[0].detail).toBe('Uint<8>');
+    });
+
+    it('handles range type argument in detail', () => {
+      const syms = symbols('new type RangeUint = Uint<4..8>;');
+      expect(syms).toHaveLength(1);
+      expect(syms[0].name).toBe('RangeUint');
+      expect(syms[0].detail).toBe('Uint<4..8>');
+    });
+  });
+
   describe('ranges', () => {
     it('range covers full declaration', () => {
       const syms = symbols('circuit add(x: Field) : Field { return x; }');

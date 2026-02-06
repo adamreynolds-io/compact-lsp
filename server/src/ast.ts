@@ -21,11 +21,18 @@ export interface ParameterizedType {
   range: SourceRange;
 }
 
-export type TypeArgument = TypeNode | NumberArgument;
+export type TypeArgument = TypeNode | NumberArgument | RangeArgument;
 
 export interface NumberArgument {
   kind: 'NumberArgument';
   value: string;
+  range: SourceRange;
+}
+
+export interface RangeArgument {
+  kind: 'RangeArgument';
+  low: string;
+  high: string;
   range: SourceRange;
 }
 
@@ -35,11 +42,39 @@ export interface TupleType {
   range: SourceRange;
 }
 
+// Destructuring patterns
+export interface TuplePattern {
+  kind: 'TuplePattern';
+  elements: (string | null)[];
+  range: SourceRange;
+}
+
+export interface StructPatternField {
+  key: string;
+  alias?: string;
+}
+
+export interface StructPattern {
+  kind: 'StructPattern';
+  fields: StructPatternField[];
+  range: SourceRange;
+}
+
+export type DestructurePattern = TuplePattern | StructPattern;
+
 // Parameter
 export interface Parameter {
   kind: 'Parameter';
   name: string;
+  pattern?: DestructurePattern;
   typeAnnotation: TypeNode | undefined;
+  range: SourceRange;
+}
+
+// Import specifiers
+export interface ImportSpecifier {
+  name: string;
+  alias?: string;
   range: SourceRange;
 }
 
@@ -58,6 +93,8 @@ export type Declaration =
   | PragmaDeclaration
   | ImportDeclaration
   | IncludeDeclaration
+  | NewTypeDeclaration
+  | ExportList
   | ErrorNode;
 
 export interface CircuitDefinition {
@@ -174,12 +211,30 @@ export interface PragmaDeclaration {
 export interface ImportDeclaration {
   kind: 'ImportDeclaration';
   moduleName: string;
+  specifiers?: ImportSpecifier[];
+  prefix?: string;
+  source?: string;
   range: SourceRange;
 }
 
 export interface IncludeDeclaration {
   kind: 'IncludeDeclaration';
   path: string;
+  range: SourceRange;
+}
+
+export interface NewTypeDeclaration {
+  kind: 'NewTypeDeclaration';
+  name: string;
+  generics: string[];
+  typeExpr: TypeNode;
+  isExport: boolean;
+  range: SourceRange;
+}
+
+export interface ExportList {
+  kind: 'ExportList';
+  names: { name: string; range: SourceRange }[];
   range: SourceRange;
 }
 
@@ -203,7 +258,9 @@ export type Expression =
   | StructConstruction
   | CastExpression
   | ArrowFunction
-  | AssignmentExpression;
+  | AssignmentExpression
+  | SpreadExpression
+  | BytesLiteral;
 
 export interface IdentifierExpression {
   kind: 'IdentifierExpression';
@@ -271,6 +328,7 @@ export interface TupleLiteral {
 export interface StructFieldInit {
   name: string;
   value: Expression;
+  isShorthand?: boolean;
   range: SourceRange;
 }
 
@@ -278,6 +336,7 @@ export interface StructConstruction {
   kind: 'StructConstruction';
   structName: string;
   fields: StructFieldInit[];
+  spread?: Expression;
   range: SourceRange;
 }
 
@@ -291,7 +350,7 @@ export interface CastExpression {
 export interface ArrowFunction {
   kind: 'ArrowFunction';
   params: Parameter[];
-  body: Expression;
+  body: Expression | Statement[];
   range: SourceRange;
 }
 
@@ -300,6 +359,18 @@ export interface AssignmentExpression {
   operator: string;
   target: Expression;
   value: Expression;
+  range: SourceRange;
+}
+
+export interface SpreadExpression {
+  kind: 'SpreadExpression';
+  argument: Expression;
+  range: SourceRange;
+}
+
+export interface BytesLiteral {
+  kind: 'BytesLiteral';
+  elements: Expression[];
   range: SourceRange;
 }
 
@@ -317,6 +388,7 @@ export type Statement =
 export interface ConstStatement {
   kind: 'ConstStatement';
   name: string;
+  pattern?: DestructurePattern;
   typeAnnotation: TypeNode | undefined;
   initializer: Expression;
   range: SourceRange;
@@ -347,6 +419,7 @@ export interface ForStatement {
 export interface AssertStatement {
   kind: 'AssertStatement';
   condition: Expression;
+  message?: Expression;
   range: SourceRange;
 }
 

@@ -90,6 +90,38 @@ describe('Lexer', () => {
       expect(texts('"hello"')).toEqual(['"hello"']);
     });
 
+    it('tokenizes single-quoted string literals', () => {
+      expect(kinds("'hello'")).toEqual([TokenKind.StringLiteral]);
+      expect(texts("'hello'")).toEqual(["'hello'"]);
+    });
+
+    it('tokenizes single-quoted strings with escapes', () => {
+      expect(kinds("'he\\'llo'")).toEqual([TokenKind.StringLiteral]);
+      expect(texts("'he\\'llo'")).toEqual(["'he\\'llo'"]);
+    });
+
+    it('tokenizes hex number literals', () => {
+      expect(kinds('0xff 0XAB')).toEqual([TokenKind.NumberLiteral, TokenKind.NumberLiteral]);
+      expect(texts('0xff 0XAB')).toEqual(['0xff', '0XAB']);
+    });
+
+    it('tokenizes binary number literals', () => {
+      expect(kinds('0b1010 0B1')).toEqual([TokenKind.NumberLiteral, TokenKind.NumberLiteral]);
+      expect(texts('0b1010 0B1')).toEqual(['0b1010', '0B1']);
+    });
+
+    it('tokenizes octal number literals', () => {
+      expect(kinds('0o77 0O12')).toEqual([TokenKind.NumberLiteral, TokenKind.NumberLiteral]);
+      expect(texts('0o77 0O12')).toEqual(['0o77', '0O12']);
+    });
+
+    it('distinguishes 0 from prefixed literals', () => {
+      expect(texts('0')).toEqual(['0']);
+      expect(texts('0xff')).toEqual(['0xff']);
+      expect(texts('0b10')).toEqual(['0b10']);
+      expect(texts('0o7')).toEqual(['0o7']);
+    });
+
     it('tokenizes boolean literals', () => {
       expect(kinds('true false')).toEqual([TokenKind.BooleanLiteral, TokenKind.BooleanLiteral]);
     });

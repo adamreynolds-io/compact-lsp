@@ -1,13 +1,10 @@
 pragma language_version 0.14.0;
 include "standard_library.compact";
 
+// --- Existing syntax ---
 export sealed ledger counter : Field;
 
 witness getSecret() : Field;
-
-export pure circuit increment(amount: Field) : Void {
-  counter += amount;
-}
 
 struct Point {
   x: Field;
@@ -24,4 +21,57 @@ const MAX: Uint<32> = 100;
 
 contract MyContract {
   circuit verify(proof: Field) : Boolean;
+}
+
+// --- New syntax: imports ---
+import { foo, bar as baz } from MyModule;
+import OtherModule prefix O$;
+
+// --- New syntax: new type ---
+new type MyBool = Boolean;
+new type SmallUint = Uint<8>;
+new type RangeUint = Uint<4..8>;
+export new type ExportedType = Field;
+
+// --- New syntax: export list ---
+export { foo, baz };
+
+// --- New syntax: circuit with new features ---
+export pure circuit increment(amount: Field) : Void {
+  // hex, binary, octal literals
+  const hex = 0xFF;
+  const bin = 0b1010;
+  const oct = 0o77;
+
+  // single-quoted string in assert message
+  assert(true, 'must be true');
+
+  // multiple const bindings
+  const a: Field = 1, b: Field = 2;
+
+  // tuple destructuring
+  const [first, second] = [a, b];
+
+  // struct destructuring
+  const {x, y} = Point { x: a, y: b };
+
+  // struct shorthand
+  const p = Point { x, y };
+
+  // spread in tuple
+  const spread_result = [1, ...p, 3];
+
+  // block-body arrow function
+  const mapper = (v: Field) => {
+    const result = v;
+    return result;
+  };
+
+  // range type argument
+  const r: Uint<0..255> = 42;
+
+  // Bytes literal
+  const data = Bytes[1, 2, 3, 0xFF];
+
+  counter += amount;
 }

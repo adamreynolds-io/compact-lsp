@@ -92,6 +92,16 @@ circuit foo(x: Field) : Field { return x; }`;
       }
     });
 
+    it('renames destructured binding', () => {
+      const source = 'circuit foo() : Void {\n  const [a, b] = pair;\n  a;\n}';
+      // 'a' at line 2, col 2
+      const edits = rename(source, 2, 2, 'first');
+      expect(edits.length).toBeGreaterThanOrEqual(1);
+      for (const edit of edits) {
+        expect(edit.newText).toBe('first');
+      }
+    });
+
     it('returns empty for built-in types', () => {
       const source = 'circuit foo(x: Field) : Field { return x; }';
       // "Field" is built-in, findReferences with includeDeclaration will include its range

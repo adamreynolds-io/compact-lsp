@@ -199,6 +199,83 @@ contract MyContract {
     });
   });
 
+  describe('new syntax full pipeline', () => {
+    const newSyntaxSource = `
+import { foo, bar as baz } from MyModule;
+import OtherModule prefix O$;
+
+new type MyBool = Boolean;
+new type RangeUint = Uint<4..8>;
+
+export { foo, baz };
+
+struct Point { x: Field; y: Field; }
+
+circuit process(x: Field) : Field {
+  const a = 0xFF;
+  const b = 0b1010;
+  const [first, second] = pair;
+  const {x: px, y: py} = point;
+  assert(true, "must be true");
+  const mapper = (v: Field) => { return v; };
+  return first;
+}
+`;
+
+    it('parses new syntax without errors', () => {
+      const result = parse(newSyntaxSource);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('builds symbol table for new syntax', () => {
+      const result = parse(newSyntaxSource);
+      const { fileScope } = buildSymbolTable(result.sourceFile);
+      expect(fileScope.symbols.get('foo')).toBeDefined();
+      expect(fileScope.symbols.get('baz')).toBeDefined();
+      expect(fileScope.symbols.get('MyBool')).toBeDefined();
+      expect(fileScope.symbols.get('RangeUint')).toBeDefined();
+      expect(fileScope.symbols.get('Point')).toBeDefined();
+      expect(fileScope.symbols.get('process')).toBeDefined();
+    });
+
+    it('no false diagnostics for new syntax', () => {
+      const result = parse(newSyntaxSource);
+      const { fileScope, references } = buildSymbolTable(result.sourceFile);
+      const diagnostics = computeDiagnostics(result.errors, references, fileScope);
+      // Should only have undefined errors for 'pair', 'point', 'true' (which is a boolean literal, so no ref)
+      // and 'px', 'py' are destructured from point
+      // Actually, 'pair' and 'point' are undefined since they're not declared
+      const realErrors = diagnostics.filter((d) => d.severity === 'error');
+      for (const d of realErrors) {
+        // Only 'pair' and 'point' should be truly undefined
+        expect(
+          d.message.includes("'pair'") || d.message.includes("'point'"),
+        ).toBe(true);
+      }
+    });
+
+    it('hover works for new type', () => {
+      const result = parse(newSyntaxSource);
+      const { fileScope } = buildSymbolTable(result.sourceFile);
+      // 'MyBool' is on line 4, find exact col
+      const hoverResult = getHoverInfo(result, fileScope, 4, 9, newSyntaxSource);
+      expect(hoverResult).toBeDefined();
+      expect(hoverResult!.contents).toContain('MyBool');
+    });
+
+    it('completions include new types inside circuit body', () => {
+      const result = parse(newSyntaxSource);
+      const { fileScope } = buildSymbolTable(result.sourceFile);
+      // Inside process body (line 12)
+      const items = getCompletions(result, fileScope, 12, 2);
+      const labels = items.map((c) => c.label);
+      expect(labels).toContain('MyBool');
+      expect(labels).toContain('RangeUint');
+      expect(labels).toContain('foo');
+      expect(labels).toContain('baz');
+    });
+  });
+
   describe('undefined reference diagnostics pipeline', () => {
     it('reports undefined identifier through the full pipeline', () => {
       const source = 'circuit foo() : Void {\n  undefined_var;\n}';

@@ -117,11 +117,23 @@ const KEYWORDS: Record<string, TokenKind> = {
 const TYPE_KEYWORDS = new Set(['Field', 'Boolean', 'Uint', 'Bytes', 'Vector', 'Opaque', 'Void']);
 
 function isAlpha(ch: string): boolean {
-  return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_';
+  return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_' || ch === '$';
 }
 
 function isDigit(ch: string): boolean {
   return ch >= '0' && ch <= '9';
+}
+
+function isHexDigit(ch: string): boolean {
+  return isDigit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');
+}
+
+function isBinaryDigit(ch: string): boolean {
+  return ch === '0' || ch === '1';
+}
+
+function isOctalDigit(ch: string): boolean {
+  return ch >= '0' && ch <= '7';
 }
 
 function isAlphaNumeric(ch: string): boolean {
@@ -201,24 +213,49 @@ export function tokenize(source: string): Token[] {
     // Number literals
     if (isDigit(ch)) {
       let text = '';
-      while (offset < source.length && isDigit(peek())) {
-        text += advance();
+      if (ch === '0' && (peekNext() === 'x' || peekNext() === 'X')) {
+        // Hex literal: 0x...
+        text += advance(); // '0'
+        text += advance(); // 'x' or 'X'
+        while (offset < source.length && isHexDigit(peek())) {
+          text += advance();
+        }
+      } else if (ch === '0' && (peekNext() === 'b' || peekNext() === 'B')) {
+        // Binary literal: 0b...
+        text += advance(); // '0'
+        text += advance(); // 'b' or 'B'
+        while (offset < source.length && isBinaryDigit(peek())) {
+          text += advance();
+        }
+      } else if (ch === '0' && (peekNext() === 'o' || peekNext() === 'O')) {
+        // Octal literal: 0o...
+        text += advance(); // '0'
+        text += advance(); // 'o' or 'O'
+        while (offset < source.length && isOctalDigit(peek())) {
+          text += advance();
+        }
+      } else {
+        // Decimal literal
+        while (offset < source.length && isDigit(peek())) {
+          text += advance();
+        }
       }
       tokens.push(makeToken(TokenKind.NumberLiteral, text, startPos));
       continue;
     }
 
-    // String literals
-    if (ch === '"') {
+    // String literals (double-quoted or single-quoted)
+    if (ch === '"' || ch === "'") {
+      const quote = ch;
       let text = '';
       text += advance(); // opening quote
-      while (offset < source.length && peek() !== '"' && peek() !== '\n') {
+      while (offset < source.length && peek() !== quote && peek() !== '\n') {
         if (peek() === '\\') {
           text += advance(); // backslash
         }
         text += advance();
       }
-      if (peek() === '"') {
+      if (peek() === quote) {
         text += advance(); // closing quote
       }
       tokens.push(makeToken(TokenKind.StringLiteral, text, startPos));

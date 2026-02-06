@@ -102,6 +102,45 @@ describe('Diagnostics Provider', () => {
       expect(undefDiag).toBeUndefined();
     });
 
+    it('does not report error for new type usage', () => {
+      const source = 'new type MyBool = Boolean;\ncircuit foo() : Void { MyBool; }';
+      const result = parse(source);
+      const { fileScope, references } = buildSymbolTable(result.sourceFile);
+      const diagnostics = computeDiagnostics(result.errors, references, fileScope);
+      const undefDiag = diagnostics.find((d) => d.message.includes("'MyBool' is not defined"));
+      expect(undefDiag).toBeUndefined();
+    });
+
+    it('does not report error for selective import specifier', () => {
+      const source = 'import { foo } from MyModule;\ncircuit bar() : Void { foo; }';
+      const result = parse(source);
+      const { fileScope, references } = buildSymbolTable(result.sourceFile);
+      const diagnostics = computeDiagnostics(result.errors, references, fileScope);
+      const undefDiag = diagnostics.find((d) => d.message.includes("'foo' is not defined"));
+      expect(undefDiag).toBeUndefined();
+    });
+
+    it('does not report error for destructured bindings', () => {
+      const source = 'circuit foo() : Void {\n  const [a, b] = pair;\n  a;\n  b;\n}';
+      const result = parse(source);
+      const { fileScope, references } = buildSymbolTable(result.sourceFile);
+      const diagnostics = computeDiagnostics(result.errors, references, fileScope);
+      const undefA = diagnostics.find((d) => d.message.includes("'a' is not defined"));
+      const undefB = diagnostics.find((d) => d.message.includes("'b' is not defined"));
+      expect(undefA).toBeUndefined();
+      expect(undefB).toBeUndefined();
+    });
+
+    it('does not report error for new built-in functions', () => {
+      const source =
+        'circuit foo() : Void {\n  transientHash;\n  persistentHash;\n  ecAdd;\n  ownPublicKey;\n}';
+      const result = parse(source);
+      const { fileScope, references } = buildSymbolTable(result.sourceFile);
+      const diagnostics = computeDiagnostics(result.errors, references, fileScope);
+      const undefDiag = diagnostics.find((d) => d.message.includes('is not defined'));
+      expect(undefDiag).toBeUndefined();
+    });
+
     it('reports error for out-of-scope local variable', () => {
       // y is declared inside an if block and should not be visible outside
       // Actually, the current parser doesn't create block scopes for if bodies...

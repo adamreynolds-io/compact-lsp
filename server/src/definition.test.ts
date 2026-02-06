@@ -138,6 +138,52 @@ describe('Definition Provider', () => {
     });
   });
 
+  describe('selective import specifier', () => {
+    it('resolves selective import to import declaration', () => {
+      // Line 0: import { foo } from MyModule;
+      // Line 1: circuit bar() : Void { foo; }
+      const source = 'import { foo } from MyModule;\ncircuit bar() : Void { foo; }';
+      // 'foo' on line 1 at column 23
+      const result = definition(source, 1, 23);
+      expect(result).toBeDefined();
+      expect(result!.range.start.line).toBe(0);
+    });
+  });
+
+  describe('destructured bindings', () => {
+    it('resolves tuple destructured variable to const statement', () => {
+      // Line 0: circuit foo() : Void {
+      // Line 1:   const [a, b] = pair;
+      // Line 2:   a;
+      // Line 3: }
+      const source = 'circuit foo() : Void {\n  const [a, b] = pair;\n  a;\n}';
+      // 'a' on line 2 at column 2
+      const result = definition(source, 2, 2);
+      expect(result).toBeDefined();
+      expect(result!.range.start.line).toBe(1);
+    });
+
+    it('resolves struct destructured variable to const statement', () => {
+      const source = 'circuit foo() : Void {\n  const {x, y: z} = point;\n  z;\n}';
+      // 'z' on line 2 at column 2
+      const result = definition(source, 2, 2);
+      expect(result).toBeDefined();
+      expect(result!.range.start.line).toBe(1);
+    });
+  });
+
+  describe('new type reference', () => {
+    it('resolves new type reference to declaration', () => {
+      // Line 0: new type MyBool = Boolean;
+      // Line 1: circuit foo() : Void { MyBool; }
+      const source = 'new type MyBool = Boolean;\ncircuit foo() : Void { MyBool; }';
+      // 'MyBool' on line 1 at column 23
+      const result = definition(source, 1, 23);
+      expect(result).toBeDefined();
+      expect(result!.range.start.line).toBe(0);
+    });
+  });
+
   describe('built-in types', () => {
     it('returns undefined for built-in types (no source location)', () => {
       // 'Field' is a built-in type; it has no source declaration
