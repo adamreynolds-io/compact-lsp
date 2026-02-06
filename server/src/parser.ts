@@ -28,6 +28,7 @@ import {
   TypeArgument,
   NumberArgument,
   RangeArgument,
+  StringArgument,
   Parameter,
   SourceRange,
   ParseError,
@@ -823,6 +824,8 @@ class Parser {
     const args: TypeArgument[] = [];
 
     while (!this.check(TokenKind.GreaterThan) && !this.isAtEnd()) {
+      const iterStart = this.pos;
+
       if (this.check(TokenKind.NumberLiteral)) {
         const numStart = this.current().pos;
         const value = this.current().text;
@@ -845,11 +848,25 @@ class Parser {
             range: { start: numStart, end: this.previousPos() },
           } as NumberArgument);
         }
+      } else if (this.check(TokenKind.StringLiteral)) {
+        const strStart = this.current().pos;
+        const value = this.current().text;
+        this.advance();
+        args.push({
+          kind: 'StringArgument',
+          value,
+          range: { start: strStart, end: this.previousPos() },
+        } as StringArgument);
       } else {
         args.push(this.parseType());
       }
 
       if (this.check(TokenKind.Comma)) {
+        this.advance();
+      }
+
+      // Safety: if no progress was made, force-advance to prevent infinite loop
+      if (this.pos === iterStart) {
         this.advance();
       }
     }

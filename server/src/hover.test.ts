@@ -228,4 +228,13 @@ describe('Hover Provider', () => {
       expect(result).toBeUndefined();
     });
   });
+
+  describe('string type arguments', () => {
+    it('displays Opaque<"string"> in ledger type', () => {
+      const source = 'ledger myLedger : Opaque<"CoinInfo">;';
+      const result = hover(source, 0, 7); // on 'myLedger'
+      expect(result).toBeDefined();
+      expect(result!.contents).toContain('Opaque<"CoinInfo">');
+    });
+  });
 });

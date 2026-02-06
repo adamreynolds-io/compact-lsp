@@ -20,6 +20,7 @@ import {
   TupleType,
   TypeReference,
   RangeArgument,
+  StringArgument,
   BinaryExpression,
   UnaryExpression,
   ConditionalExpression,
@@ -1069,6 +1070,60 @@ describe('Parser', () => {
       // Parser may or may not produce errors for unclosed brace at EOF,
       // but it must not crash
       expect(result.sourceFile).toBeDefined();
+    });
+  });
+
+  describe('string type arguments', () => {
+    it('parses Opaque<"string"> as return type', () => {
+      const source = 'ledger myLedger : Opaque<"CoinInfo">;';
+      const result = parse(source);
+      expect(result.errors).toHaveLength(0);
+      const decl = result.sourceFile.declarations[0] as LedgerDeclaration;
+      const type = decl.typeAnnotation as ParameterizedType;
+      expect(type.kind).toBe('ParameterizedType');
+      expect(type.name).toBe('Opaque');
+      expect(type.args).toHaveLength(1);
+      expect(type.args[0].kind).toBe('StringArgument');
+      expect((type.args[0] as StringArgument).value).toBe('"CoinInfo"');
+    });
+
+    it('parses nested string type arg: Map<Uint<128>, Opaque<"string">>', () => {
+      const source = 'ledger m : Map<Uint<128>, Opaque<"string">>;';
+      const result = parse(source);
+      expect(result.errors).toHaveLength(0);
+      const decl = result.sourceFile.declarations[0] as LedgerDeclaration;
+      const type = decl.typeAnnotation as ParameterizedType;
+      expect(type.name).toBe('Map');
+      expect(type.args).toHaveLength(2);
+      const opaqueArg = type.args[1] as ParameterizedType;
+      expect(opaqueArg.name).toBe('Opaque');
+      expect(opaqueArg.args[0].kind).toBe('StringArgument');
+      expect((opaqueArg.args[0] as StringArgument).value).toBe('"string"');
+    });
+
+    it('parses default<Opaque<"string">> in expression position', () => {
+      const source = 'circuit f() : Opaque<"test"> { const x = default(Opaque<"test">); }';
+      const result = parse(source);
+      // Should parse without OOM/infinite loop; may have minor errors but no crash
+      expect(result).toBeDefined();
+      expect(result.sourceFile).toBeDefined();
+    });
+  });
+
+  describe('block comments in source', () => {
+    it('code with block comments produces no errors', () => {
+      const source = `
+        /** This is a doc comment */
+        circuit add(x: Field, y: Field) : Field {
+          /* inline */ const z = x;
+          return z;
+        }
+      `;
+      const result = parse(source);
+      expect(result.errors).toHaveLength(0);
+      const decl = result.sourceFile.declarations[0] as CircuitDefinition;
+      expect(decl.kind).toBe('CircuitDefinition');
+      expect(decl.name).toBe('add');
     });
   });
 });

@@ -191,6 +191,21 @@ export function tokenize(source: string): Token[] {
       continue;
     }
 
+    // Skip block comments /* ... */ and /** ... */
+    if (ch === '/' && peekNext() === '*') {
+      advance(); // '/'
+      advance(); // '*'
+      while (offset < source.length) {
+        if (peek() === '*' && peekNext() === '/') {
+          advance(); // '*'
+          advance(); // '/'
+          break;
+        }
+        advance();
+      }
+      continue;
+    }
+
     const startPos = currentPos();
 
     // Identifiers and keywords

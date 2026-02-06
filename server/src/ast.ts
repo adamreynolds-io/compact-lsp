@@ -21,7 +21,7 @@ export interface ParameterizedType {
   range: SourceRange;
 }
 
-export type TypeArgument = TypeNode | NumberArgument | RangeArgument;
+export type TypeArgument = TypeNode | NumberArgument | RangeArgument | StringArgument;
 
 export interface NumberArgument {
   kind: 'NumberArgument';
@@ -33,6 +33,12 @@ export interface RangeArgument {
   kind: 'RangeArgument';
   low: string;
   high: string;
+  range: SourceRange;
+}
+
+export interface StringArgument {
+  kind: 'StringArgument';
+  value: string;
   range: SourceRange;
 }
 

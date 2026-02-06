@@ -713,6 +713,7 @@ export function formatTypeNode(t: TypeNode): string {
         .map((a) => {
           if (a.kind === 'NumberArgument') return a.value;
           if (a.kind === 'RangeArgument') return `${a.low}..${a.high}`;
+          if (a.kind === 'StringArgument') return a.value;
           return formatTypeNode(a);
         })
         .join(', ')}>`;

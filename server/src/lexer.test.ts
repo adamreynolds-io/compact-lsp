@@ -227,4 +227,33 @@ describe('Lexer', () => {
       ]);
     });
   });
+
+  describe('block comments', () => {
+    it('skips block comments', () => {
+      expect(kinds('/* comment */ circuit')).toEqual([TokenKind.Circuit]);
+    });
+
+    it('skips JSDoc comments', () => {
+      expect(kinds('/** @param x */ circuit')).toEqual([TokenKind.Circuit]);
+    });
+
+    it('skips multi-line block comments', () => {
+      const source = `/* line 1
+line 2
+line 3 */ circuit`;
+      expect(kinds(source)).toEqual([TokenKind.Circuit]);
+    });
+
+    it('handles unterminated block comment gracefully', () => {
+      const tokens = tokenize('/* unterminated comment');
+      // Should just produce EOF without crashing
+      expect(tokens).toHaveLength(1);
+      expect(tokens[0].kind).toBe(TokenKind.EOF);
+    });
+
+    it('handles block comment between tokens', () => {
+      expect(kinds('circuit /* name */ add')).toEqual([TokenKind.Circuit, TokenKind.Identifier]);
+      expect(texts('circuit /* name */ add')).toEqual(['circuit', 'add']);
+    });
+  });
 });
