@@ -48,6 +48,7 @@ import { WorkspaceIndex } from './workspaceIndex';
 import { computeImportDiagnostics } from './importDiagnostics';
 import { fsPathToUri, uriToFsPath } from './moduleResolution';
 import { getCodeActions } from './codeActions';
+import { getFoldingRanges } from './foldingRanges';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
@@ -93,6 +94,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       codeActionProvider: {
         codeActionKinds: [CodeActionKind.QuickFix, CodeActionKind.Refactor],
       },
+      foldingRangeProvider: true,
       semanticTokensProvider: {
         legend: {
           tokenTypes: [...TOKEN_TYPES],
@@ -595,6 +597,13 @@ connection.onCodeAction((params) => {
       edit: { changes },
     };
   });
+});
+
+connection.onFoldingRanges((params) => {
+  const state = documentState.get(params.textDocument.uri);
+  if (!state) return [];
+
+  return getFoldingRanges(state.parseResult.sourceFile);
 });
 
 documents.listen(connection);
