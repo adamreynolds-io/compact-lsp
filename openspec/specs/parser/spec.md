@@ -1,4 +1,4 @@
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Lexer tokenizes Compact source
 The lexer SHALL tokenize Compact source text into a stream of tokens, each with a kind, text value, and source position (line, column, offset).
@@ -11,6 +11,10 @@ The lexer SHALL tokenize Compact source text into a stream of tokens, each with 
 - **WHEN** the source contains `myCircuit`, `_x`, `foo123`
 - **THEN** each is tokenized as an `Identifier` token (not matching any keyword)
 
+#### Scenario: Identifiers include contextual keywords
+- **WHEN** the source contains `from`, `prefix` as identifiers outside of import context
+- **THEN** each is tokenized as an `Identifier` token (they are contextual, not reserved keywords)
+
 #### Scenario: Built-in type names
 - **WHEN** the source contains `Field`, `Boolean`, `Uint`, `Bytes`, `Vector`, `Opaque`, `Void`
 - **THEN** each is tokenized as a `TypeKeyword` token
@@ -19,9 +23,21 @@ The lexer SHALL tokenize Compact source text into a stream of tokens, each with 
 - **WHEN** the source contains `42`, `0`, `1000`
 - **THEN** each is tokenized as a `NumberLiteral` token
 
+#### Scenario: Hexadecimal numeric literals
+- **WHEN** the source contains `0xff`, `0XAB`
+- **THEN** each is tokenized as a `NumberLiteral` token preserving the original text
+
+#### Scenario: Binary numeric literals
+- **WHEN** the source contains `0b1010`, `0B1`
+- **THEN** each is tokenized as a `NumberLiteral` token preserving the original text
+
+#### Scenario: Octal numeric literals
+- **WHEN** the source contains `0o77`, `0O12`
+- **THEN** each is tokenized as a `NumberLiteral` token preserving the original text
+
 #### Scenario: String literals
-- **WHEN** the source contains `"hello"`
-- **THEN** it is tokenized as a `StringLiteral` token
+- **WHEN** the source contains `"hello"` or `'hello'`
+- **THEN** each is tokenized as a `StringLiteral` token
 
 #### Scenario: Boolean literals
 - **WHEN** the source contains `true` or `false`
@@ -102,6 +118,14 @@ The parser SHALL parse top-level Compact declarations into an AST with typed nod
 - **WHEN** the source contains `include "standard_library.compact";`
 - **THEN** the AST contains an `IncludeDeclaration` node with the file path
 
+#### Scenario: New type declaration
+- **WHEN** the source contains `new type MyBool = Boolean;`
+- **THEN** the AST contains a `NewTypeDeclaration` node with name and type expression
+
+#### Scenario: Export list
+- **WHEN** the source contains `export { foo, bar };`
+- **THEN** the AST contains an `ExportList` node with names `foo` and `bar`
+
 ### Requirement: Parser parses type annotations
 The parser SHALL parse type annotations appearing in declarations (parameter types, return types, field types, ledger types).
 
@@ -121,6 +145,10 @@ The parser SHALL parse type annotations appearing in declarations (parameter typ
 - **WHEN** a type annotation is `[Field, Boolean]`
 - **THEN** it is parsed as a tuple type with element types
 
+#### Scenario: Range type argument
+- **WHEN** a type annotation is `Uint<0..4294967295>`
+- **THEN** it is parsed as a parameterized type with a range expression as the type argument
+
 ### Requirement: Parser parses circuit and constructor bodies
 The parser SHALL parse circuit and constructor bodies (delimited by `{ }`) into full statement and expression AST nodes. On unrecoverable errors inside a body, the parser SHALL fall back to brace matching to consume the remaining body content.
 
@@ -139,6 +167,39 @@ The parser SHALL parse circuit and constructor bodies (delimited by `{ }`) into 
 #### Scenario: Fallback to brace matching on deep error
 - **WHEN** the parser encounters unrecoverable syntax errors inside a body
 - **THEN** it falls back to brace matching, records an error, and continues parsing the next declaration
+
+### Requirement: Parser parses multiple const bindings
+The parser SHALL parse multiple const bindings in a single statement separated by commas: `const a = 1, b = 2;`.
+
+#### Scenario: Two const bindings
+- **WHEN** a circuit body contains `const a: Field = 1, b: Field = 2;`
+- **THEN** the AST contains two `ConstStatement` nodes (or a single node with multiple bindings), each with name, type, and initializer
+
+#### Scenario: Multiple bindings with mixed types
+- **WHEN** a circuit body contains `const a: Boolean = true, b: Field = 1, c = [1, 2];`
+- **THEN** each binding is parsed with its own type annotation and initializer
+
+### Requirement: Parser parses assert with message
+The parser SHALL parse `assert(condition, "message");` with an optional second string argument.
+
+#### Scenario: Assert with message string
+- **WHEN** a circuit body contains `assert(x == 0, "x must be zero");`
+- **THEN** the AST contains an `AssertStatement` with condition `x == 0` and message `"x must be zero"`
+
+#### Scenario: Assert without message still works
+- **WHEN** a circuit body contains `assert(x == 0);`
+- **THEN** the AST contains an `AssertStatement` with condition only (unchanged behavior)
+
+### Requirement: Parser parses struct field shorthand
+The parser SHALL parse struct construction with field shorthand where `S { x, y }` is equivalent to `S { x: x, y: y }`.
+
+#### Scenario: Shorthand field
+- **WHEN** the source contains `Point { x, y }`
+- **THEN** the AST contains a `StructConstruction` with fields where name and value reference the same identifier
+
+#### Scenario: Mixed shorthand and explicit fields
+- **WHEN** the source contains `Point { x, y: someExpr }`
+- **THEN** the AST contains a `StructConstruction` with `x` as shorthand and `y` with explicit value
 
 ### Requirement: Parser recovers from errors at declaration and statement boundaries
 The parser SHALL attempt to recover from syntax errors at both declaration boundaries (top-level) and statement boundaries (inside bodies, synchronizing at `;` or `}`).
