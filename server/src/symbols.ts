@@ -20,6 +20,7 @@ import {
   Expression,
 } from './ast';
 import { BUILTIN_DOCS } from './builtinDocs';
+import { resolveVersion, getVersionCapabilities } from './versionRegistry';
 
 export type SymbolKind =
   | 'circuit'
@@ -100,7 +101,7 @@ const LEDGER_ADT_TYPES = [
   'Kernel',
 ];
 
-export function createRootScope(): Scope {
+export function createRootScope(effectiveVersion?: string): Scope {
   const root: Scope = {
     name: '<root>',
     parent: undefined,
@@ -113,7 +114,14 @@ export function createRootScope(): Scope {
     end: { line: 0, column: 0, offset: 0 },
   };
 
-  for (const name of BUILTIN_TYPES) {
+  // If an effective version is provided and recognized, use its built-ins;
+  // otherwise fall back to all built-ins (current behavior)
+  const caps = effectiveVersion ? getVersionCapabilities(effectiveVersion) : undefined;
+  const types = caps ? caps.builtinTypes : BUILTIN_TYPES;
+  const funcs = caps ? caps.builtinFunctions : BUILTIN_FUNCTIONS;
+  const adtTypes = caps ? caps.builtinAdtTypes : LEDGER_ADT_TYPES;
+
+  for (const name of types) {
     root.symbols.set(name, {
       name,
       kind: 'builtin-type',
@@ -124,7 +132,7 @@ export function createRootScope(): Scope {
     });
   }
 
-  for (const name of BUILTIN_FUNCTIONS) {
+  for (const name of funcs) {
     root.symbols.set(name, {
       name,
       kind: 'builtin-function',
@@ -135,7 +143,7 @@ export function createRootScope(): Scope {
     });
   }
 
-  for (const name of LEDGER_ADT_TYPES) {
+  for (const name of adtTypes) {
     root.symbols.set(name, {
       name,
       kind: 'builtin-type',
@@ -150,7 +158,14 @@ export function createRootScope(): Scope {
 }
 
 export function buildSymbolTable(sourceFile: SourceFile): SymbolTableResult {
-  const root = createRootScope();
+  // Resolve language version to determine which built-ins to register
+  let effectiveVersion: string | undefined;
+  if (sourceFile.languageVersion && sourceFile.languageVersionOperator) {
+    const resolved = resolveVersion(sourceFile.languageVersion, sourceFile.languageVersionOperator);
+    effectiveVersion = resolved?.effectiveVersion;
+  }
+
+  const root = createRootScope(effectiveVersion);
   const fileScope = createChildScope('<file>', root);
   const references: Reference[] = [];
 

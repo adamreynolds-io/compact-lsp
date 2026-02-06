@@ -162,7 +162,13 @@ describe('utils', () => {
       const { fileScope, parseResult } = setup(source);
       const decl = parseResult.sourceFile.declarations[0];
       // Create a scope that has no children matching this decl
-      const emptyScope = { name: 'empty', kind: 'block' as const, parent: undefined, children: [], symbols: new Map() };
+      const emptyScope = {
+        name: 'empty',
+        kind: 'block' as const,
+        parent: undefined,
+        children: [],
+        symbols: new Map(),
+      };
       const result = findChildScopeForDecl(emptyScope, decl);
       expect(result).toBeUndefined();
     });

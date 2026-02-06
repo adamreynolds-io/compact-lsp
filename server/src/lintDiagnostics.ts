@@ -144,10 +144,7 @@ function checkDeclarationsForUnreachable(
   }
 }
 
-function checkStatementsForUnreachable(
-  stmts: Statement[],
-  diagnostics: Diagnostic[],
-): void {
+function checkStatementsForUnreachable(stmts: Statement[], diagnostics: Diagnostic[]): void {
   for (let i = 0; i < stmts.length; i++) {
     const stmt = stmts[i];
 

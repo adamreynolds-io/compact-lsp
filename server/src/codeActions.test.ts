@@ -59,9 +59,7 @@ function getActionsForSource(
 
   // Filter diagnostics that overlap with the range
   const relevantDiags = diagnostics.filter(
-    (d) =>
-      d.range.start.line <= range.end.line &&
-      d.range.end.line >= range.start.line,
+    (d) => d.range.start.line <= range.end.line && d.range.end.line >= range.start.line,
   );
 
   return getCodeActions(
@@ -135,10 +133,7 @@ describe('Code Actions', () => {
       const utilsUri = makeUri('utils.compact');
       const mainUri = makeUri('main.compact');
 
-      index.addFile(
-        utilsUri,
-        'module Utils { export circuit valid() : Void { } }',
-      );
+      index.addFile(utilsUri, 'module Utils { export circuit valid() : Void { } }');
       index.addFile(mainUri, 'import { valid, invalid } from Utils;');
 
       const entry = index.getFileEntry(mainUri)!;
@@ -323,10 +318,7 @@ describe('Code Actions', () => {
 
     it('does not offer extract for selection containing semicolons', () => {
       const source = 'circuit foo() : Void {\n  const x = 1; const y = 2;\n}';
-      const actions = getActionsForSource(
-        source,
-        selectionRange(1, 2, 1, 28),
-      );
+      const actions = getActionsForSource(source, selectionRange(1, 2, 1, 28));
 
       const extract = actions.find((a) => a.title === 'Extract to const');
       expect(extract).toBeUndefined();
@@ -362,8 +354,7 @@ describe('Code Actions', () => {
     });
 
     it('does not offer removal for used specifier', () => {
-      const source =
-        'import { used } from SomeModule;\ncircuit foo() : Void {\n  used;\n}';
+      const source = 'import { used } from SomeModule;\ncircuit foo() : Void {\n  used;\n}';
       const tokens = tokenize(source);
       const parseResult = parse(source);
       const { fileScope, references } = buildSymbolTable(parseResult.sourceFile);
@@ -402,8 +393,7 @@ describe('Code Actions', () => {
     });
 
     it('quick fix removes only the unused specifier when multiple exist', () => {
-      const source =
-        'import { used, unused } from SomeModule;\ncircuit foo() : Void {\n  used;\n}';
+      const source = 'import { used, unused } from SomeModule;\ncircuit foo() : Void {\n  used;\n}';
       // Point range on the import line
       const actions = getActionsForSource(source, pointRange(0, 15));
 
@@ -415,8 +405,7 @@ describe('Code Actions', () => {
     });
 
     it('no quick fix when import is used', () => {
-      const source =
-        'import { used } from SomeModule;\ncircuit foo() : Void {\n  used;\n}';
+      const source = 'import { used } from SomeModule;\ncircuit foo() : Void {\n  used;\n}';
       const actions = getActionsForSource(source, pointRange(0, 9));
 
       const quickFix = actions.find(

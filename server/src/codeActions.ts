@@ -452,10 +452,7 @@ function removeUnusedImport(
     if (decl.kind !== 'ImportDeclaration' || !decl.specifiers) continue;
 
     // Check if cursor is within this import declaration
-    if (
-      range.start.line < decl.range.start.line ||
-      range.start.line > decl.range.end.line
-    )
+    if (range.start.line < decl.range.start.line || range.start.line > decl.range.end.line)
       continue;
 
     const actions: CodeActionResult[] = [];
@@ -495,9 +492,7 @@ function removeUnusedImport(
         } else {
           // Multiple specifiers — remove just this one
           const remaining = decl.specifiers.filter((s) => s !== spec);
-          const specList = remaining.map((s) =>
-            s.alias ? `${s.name} as ${s.alias}` : s.name,
-          );
+          const specList = remaining.map((s) => (s.alias ? `${s.name} as ${s.alias}` : s.name));
           const newImport = `import { ${specList.join(', ')} } from ${decl.source || decl.moduleName};`;
 
           const lines = source.split('\n');

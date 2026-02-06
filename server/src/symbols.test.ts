@@ -390,4 +390,35 @@ describe('Symbol Table', () => {
       }
     });
   });
+
+  describe('version-gated root scope', () => {
+    it('registers all built-ins when no version is provided', () => {
+      const root = createRootScope();
+      expect(root.symbols.has('Field')).toBe(true);
+      expect(root.symbols.has('map')).toBe(true);
+      expect(root.symbols.has('Counter')).toBe(true);
+    });
+
+    it('registers built-ins for a recognized version', () => {
+      const root = createRootScope('0.14.0');
+      expect(root.symbols.has('Field')).toBe(true);
+      expect(root.symbols.has('map')).toBe(true);
+      expect(root.symbols.has('Counter')).toBe(true);
+    });
+
+    it('registers all built-ins for an unrecognized version', () => {
+      const root = createRootScope('99.0.0');
+      // Unknown version falls back to all built-ins
+      expect(root.symbols.has('Field')).toBe(true);
+      expect(root.symbols.has('map')).toBe(true);
+    });
+
+    it('buildSymbolTable resolves version from SourceFile', () => {
+      const { sourceFile } = parse('pragma language_version 0.14.0;');
+      const { fileScope } = buildSymbolTable(sourceFile);
+      // Root scope should have Field (it's in 0.14.0)
+      const root = fileScope.parent!;
+      expect(root.symbols.has('Field')).toBe(true);
+    });
+  });
 });

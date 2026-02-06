@@ -127,9 +127,29 @@ class Parser {
     const startPos = this.current().pos;
     const declarations = this.parseDeclarations();
     const endPos = this.current().pos;
+
+    // Extract language_version from the first matching pragma
+    let languageVersion: string | undefined;
+    let languageVersionOperator: '=' | '>=' | undefined;
+    for (const decl of declarations) {
+      if (decl.kind === 'PragmaDeclaration' && decl.name === 'language_version') {
+        const value = decl.value.trim();
+        if (value.startsWith('>=')) {
+          languageVersionOperator = '>=';
+          languageVersion = value.slice(2).trim();
+        } else {
+          languageVersionOperator = '=';
+          languageVersion = value;
+        }
+        break; // first wins
+      }
+    }
+
     const sourceFile: SourceFile = {
       kind: 'SourceFile',
       declarations,
+      languageVersion,
+      languageVersionOperator,
       range: { start: startPos, end: endPos },
     };
     return { sourceFile, errors: this.errors };

@@ -444,6 +444,8 @@ export interface ErrorStatement {
 export interface SourceFile {
   kind: 'SourceFile';
   declarations: Declaration[];
+  languageVersion?: string;
+  languageVersionOperator?: '=' | '>=';
   range: SourceRange;
 }
 

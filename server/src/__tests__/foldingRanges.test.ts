@@ -71,9 +71,7 @@ describe('Folding Ranges', () => {
   }
 }`);
       // Module fold + constructor fold
-      const constructorFold = ranges.find(
-        (r) => r.startLine === 1,
-      );
+      const constructorFold = ranges.find((r) => r.startLine === 1);
       expect(constructorFold).toBeDefined();
       expect(constructorFold!.endLine).toBe(3);
     });

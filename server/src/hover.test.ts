@@ -200,4 +200,32 @@ describe('Hover Provider', () => {
       expect(result).toBeDefined();
     });
   });
+
+  describe('pragma version hover', () => {
+    it('shows supported for known exact version', () => {
+      const result = hover('pragma language_version 0.14.0;', 0, 10);
+      expect(result).toBeDefined();
+      expect(result!.contents).toContain('0.14.0');
+      expect(result!.contents).toContain('supported');
+    });
+
+    it('shows unsupported for unknown version', () => {
+      const result = hover('pragma language_version 99.0.0;', 0, 10);
+      expect(result).toBeDefined();
+      expect(result!.contents).toContain('99.0.0');
+      expect(result!.contents).toContain('unsupported');
+    });
+
+    it('shows effective version for >= fallback', () => {
+      const result = hover('pragma language_version >= 0.10.0;', 0, 10);
+      expect(result).toBeDefined();
+      expect(result!.contents).toContain('0.10.0');
+      expect(result!.contents).toContain('0.14.0');
+    });
+
+    it('returns nothing for non-version pragma', () => {
+      const result = hover('pragma other_thing 1.0;', 0, 10);
+      expect(result).toBeUndefined();
+    });
+  });
 });

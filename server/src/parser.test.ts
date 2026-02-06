@@ -204,6 +204,36 @@ describe('Parser', () => {
       expect(decl.kind).toBe('PragmaDeclaration');
       expect(decl.name).toBe('language_version');
     });
+
+    it('extracts exact languageVersion onto SourceFile', () => {
+      const result = parse('pragma language_version 0.14.0;');
+      expect(result.sourceFile.languageVersion).toBe('0.14.0');
+      expect(result.sourceFile.languageVersionOperator).toBe('=');
+    });
+
+    it('extracts >= languageVersion onto SourceFile', () => {
+      const result = parse('pragma language_version >= 0.14.0;');
+      expect(result.sourceFile.languageVersion).toBe('0.14.0');
+      expect(result.sourceFile.languageVersionOperator).toBe('>=');
+    });
+
+    it('leaves languageVersion undefined when no pragma', () => {
+      const result = parse('circuit foo() : Field { return 1; }');
+      expect(result.sourceFile.languageVersion).toBeUndefined();
+      expect(result.sourceFile.languageVersionOperator).toBeUndefined();
+    });
+
+    it('uses first pragma language_version when multiple exist', () => {
+      const result = parse('pragma language_version 0.14.0;\npragma language_version 0.20.0;');
+      expect(result.sourceFile.languageVersion).toBe('0.14.0');
+      expect(result.sourceFile.languageVersionOperator).toBe('=');
+    });
+
+    it('ignores non-language_version pragmas', () => {
+      const result = parse('pragma other_thing 1.0;');
+      expect(result.sourceFile.languageVersion).toBeUndefined();
+      expect(result.sourceFile.languageVersionOperator).toBeUndefined();
+    });
   });
 
   describe('import', () => {

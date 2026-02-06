@@ -4,7 +4,7 @@ import { Reference, Scope, resolveSymbol } from './symbols';
 export interface Diagnostic {
   message: string;
   range: SourceRange;
-  severity: 'error' | 'warning';
+  severity: 'error' | 'warning' | 'information';
   source: string;
   code?: string;
 }

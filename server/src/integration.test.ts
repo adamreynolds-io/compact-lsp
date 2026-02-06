@@ -7,6 +7,7 @@ import { computeDiagnostics } from './diagnostics';
 import { getDefinition } from './definition';
 import { findReferences } from './references';
 import { getCompletions } from './completion';
+import { computeVersionDiagnostics } from './versionDiagnostics';
 
 /**
  * Integration tests that exercise the full analysis pipeline:
@@ -297,6 +298,56 @@ circuit process(x: Field) : Field {
       const { fileScope, references } = buildSymbolTable(result.sourceFile);
       const diagnostics = computeDiagnostics(result.errors, references, fileScope);
       expect(diagnostics).toHaveLength(0);
+    });
+  });
+
+  describe('version-aware pipeline', () => {
+    it('file with exact pragma version gets correct diagnostics, hover, and completions', () => {
+      const source = `pragma language_version 0.14.0;
+circuit foo(x: Field) : Field {
+  return x;
+}`;
+      const tokens = tokenize(source);
+      const result = parse(source);
+      const { fileScope } = buildSymbolTable(result.sourceFile);
+
+      // No version diagnostics for known version
+      const versionDiags = computeVersionDiagnostics(result.sourceFile);
+      expect(versionDiags).toHaveLength(0);
+
+      // Hover on pragma shows version info
+      const pragmaHover = getHoverInfo(result, fileScope, 0, 10, tokens);
+      expect(pragmaHover).toBeDefined();
+      expect(pragmaHover!.contents).toContain('0.14.0');
+      expect(pragmaHover!.contents).toContain('supported');
+
+      // Completions include built-ins
+      const items = getCompletions(result, fileScope, 1, 40);
+      const labels = items.map((c) => c.label);
+      expect(labels).toContain('Field');
+      expect(labels).toContain('map');
+    });
+
+    it('file with >= pragma version gets informational diagnostic and correct behavior', () => {
+      const source = `pragma language_version >= 0.10.0;
+circuit foo(x: Field) : Field {
+  return x;
+}`;
+      const tokens = tokenize(source);
+      const result = parse(source);
+      const { fileScope } = buildSymbolTable(result.sourceFile);
+
+      // Should get a version-resolved informational diagnostic
+      const versionDiags = computeVersionDiagnostics(result.sourceFile);
+      expect(versionDiags).toHaveLength(1);
+      expect(versionDiags[0].code).toBe('version-resolved');
+      expect(versionDiags[0].severity).toBe('information');
+      expect(versionDiags[0].message).toContain('0.14.0');
+
+      // Hover on pragma shows effective version
+      const pragmaHover = getHoverInfo(result, fileScope, 0, 10, tokens);
+      expect(pragmaHover).toBeDefined();
+      expect(pragmaHover!.contents).toContain('0.14.0');
     });
   });
 });

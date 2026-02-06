@@ -50,6 +50,7 @@ import { fsPathToUri, uriToFsPath } from './moduleResolution';
 import { getCodeActions } from './codeActions';
 import { getFoldingRanges } from './foldingRanges';
 import { computeLintDiagnostics } from './lintDiagnostics';
+import { computeVersionDiagnostics } from './versionDiagnostics';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
@@ -116,7 +117,9 @@ function scanWorkspaceFolder(folderPath: string): void {
   try {
     scanDir(folderPath);
   } catch (e) {
-    connection.console.log(`Failed to scan workspace folder ${folderPath}: ${e instanceof Error ? e.message : String(e)}`);
+    connection.console.log(
+      `Failed to scan workspace folder ${folderPath}: ${e instanceof Error ? e.message : String(e)}`,
+    );
   }
 }
 
@@ -132,7 +135,9 @@ function scanDir(dirPath: string): void {
         const uri = fsPathToUri(fullPath);
         workspaceIndex.addFile(uri, text);
       } catch (e) {
-        connection.console.log(`Failed to read file ${fullPath}: ${e instanceof Error ? e.message : String(e)}`);
+        connection.console.log(
+          `Failed to read file ${fullPath}: ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
     }
   }
@@ -151,7 +156,9 @@ connection.onDidChangeWatchedFiles((params) => {
         const text = fs.readFileSync(fsPath, 'utf-8');
         workspaceIndex.updateFile(uri, text);
       } catch (e) {
-        connection.console.log(`Failed to read watched file ${uri}: ${e instanceof Error ? e.message : String(e)}`);
+        connection.console.log(
+          `Failed to read watched file ${uri}: ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
     } else if (change.type === FileChangeType.Deleted) {
       workspaceIndex.removeFile(uri);
@@ -207,12 +214,21 @@ function analyzeDocument(uri: string, text: string): void {
   const lintDiags = computeLintDiagnostics(parseResult.sourceFile, fileScope, references);
   diagnostics.push(...lintDiags);
 
+  const versionDiags = computeVersionDiagnostics(parseResult.sourceFile);
+  diagnostics.push(...versionDiags);
+
+  const mapSeverity = (s: string) => {
+    if (s === 'error') return DiagnosticSeverity.Error;
+    if (s === 'information') return DiagnosticSeverity.Information;
+    return DiagnosticSeverity.Warning;
+  };
+
   const lspDiagnostics: LspDiagnostic[] = diagnostics.map((d) => ({
     range: {
       start: { line: d.range.start.line, character: d.range.start.column },
       end: { line: d.range.end.line, character: d.range.end.column },
     },
-    severity: d.severity === 'error' ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning,
+    severity: mapSeverity(d.severity),
     source: d.source,
     message: d.message,
     ...(d.code !== undefined && { code: d.code }),
@@ -569,9 +585,12 @@ connection.onCodeAction((params) => {
       start: { line: d.range.start.line, column: d.range.start.character, offset: 0 },
       end: { line: d.range.end.line, column: d.range.end.character, offset: 0 },
     },
-    severity: (d.severity === DiagnosticSeverity.Error ? 'error' : 'warning') as 'error' | 'warning',
+    severity: (d.severity === DiagnosticSeverity.Error ? 'error' : 'warning') as
+      | 'error'
+      | 'warning',
     source: d.source || 'compact-lsp',
-    code: typeof d.code === 'string' ? d.code : typeof d.code === 'number' ? String(d.code) : undefined,
+    code:
+      typeof d.code === 'string' ? d.code : typeof d.code === 'number' ? String(d.code) : undefined,
   }));
 
   const range = {
@@ -608,14 +627,16 @@ connection.onCodeAction((params) => {
     return {
       title: action.title,
       kind: action.kind === 'quickfix' ? CodeActionKind.QuickFix : CodeActionKind.Refactor,
-      diagnostics: action.diagnostics?.map((d) =>
-        params.context.diagnostics.find(
-          (ld) =>
-            ld.message === d.message &&
-            ld.range.start.line === d.range.start.line &&
-            ld.range.start.character === d.range.start.column,
-        ),
-      ).filter((d): d is NonNullable<typeof d> => d !== undefined),
+      diagnostics: action.diagnostics
+        ?.map((d) =>
+          params.context.diagnostics.find(
+            (ld) =>
+              ld.message === d.message &&
+              ld.range.start.line === d.range.start.line &&
+              ld.range.start.character === d.range.start.column,
+          ),
+        )
+        .filter((d): d is NonNullable<typeof d> => d !== undefined),
       edit: { changes },
     };
   });

@@ -249,4 +249,22 @@ describe('Completion Provider', () => {
       expect(addItem!.detail).toContain('from MathUtils');
     });
   });
+
+  describe('version-gated completions', () => {
+    it('includes built-ins for known version', () => {
+      const source = 'pragma language_version 0.14.0;\ncircuit foo() : Field { }';
+      const items = completions(source, 1, 40);
+      const labels = items.map((c) => c.label);
+      expect(labels).toContain('Field');
+      expect(labels).toContain('map');
+    });
+
+    it('includes all built-ins when no version declared', () => {
+      const source = 'circuit foo() : Field { }';
+      const items = completions(source, 0, 24);
+      const labels = items.map((c) => c.label);
+      expect(labels).toContain('Field');
+      expect(labels).toContain('map');
+    });
+  });
 });

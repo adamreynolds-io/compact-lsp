@@ -4,6 +4,7 @@ import { Scope, resolveSymbol, formatSignature } from './symbols';
 import { ParseResult } from './ast';
 import { findTokenAtPosition, findScopeForPosition } from './utils';
 import { WorkspaceIndex } from './workspaceIndex';
+import { resolveVersion } from './versionRegistry';
 
 export interface HoverResult {
   contents: string;
@@ -19,6 +20,10 @@ export function getHoverInfo(
   tokens: Token[],
   workspaceIndex?: WorkspaceIndex,
 ): HoverResult | undefined {
+  // Check if cursor is on a pragma language_version declaration
+  const pragmaHover = getPragmaVersionHover(parseResult, line, column);
+  if (pragmaHover) return pragmaHover;
+
   // Find the token at position
   const token = findTokenAtPosition(tokens, line, column);
   if (!token) return undefined;
@@ -71,4 +76,42 @@ export function getHoverInfo(
     range: tokenRange,
     documentation: symbol.documentation,
   };
+}
+
+function getPragmaVersionHover(
+  parseResult: ParseResult,
+  line: number,
+  column: number,
+): HoverResult | undefined {
+  const sf = parseResult.sourceFile;
+  for (const decl of sf.declarations) {
+    if (decl.kind !== 'PragmaDeclaration' || decl.name !== 'language_version') continue;
+
+    // Check if cursor is within the pragma declaration range
+    const r = decl.range;
+    if (line < r.start.line || line > r.end.line) continue;
+    if (line === r.start.line && column < r.start.column) continue;
+    if (line === r.end.line && column > r.end.column) continue;
+
+    const version = sf.languageVersion;
+    const operator = sf.languageVersionOperator;
+    if (!version || !operator) continue;
+
+    const resolved = resolveVersion(version, operator);
+
+    let contents: string;
+    if (!resolved) {
+      contents = `pragma language_version ${operator === '>=' ? '>= ' : ''}${version} (unsupported)`;
+    } else if (resolved.fallback) {
+      contents = `pragma language_version >= ${version} (using ${resolved.effectiveVersion})`;
+    } else {
+      contents = `pragma language_version ${operator === '>=' ? '>= ' : ''}${version} (supported)`;
+    }
+
+    return {
+      contents,
+      range: decl.range,
+    };
+  }
+  return undefined;
 }
