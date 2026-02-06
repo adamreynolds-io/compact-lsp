@@ -65,4 +65,4 @@
 - [x] 9.1 Add integration tests: full pipeline from source text through parse, symbols, to each new provider
 - [x] 9.2 Verify existing hover and diagnostics tests still pass with the new body parsing
 - [x] 9.3 Run full test suite, lint, and format checks
-- [ ] 9.4 Manual smoke test in VS Code: go-to-definition, find-references, and completion on a sample .compact file
+- [x] 9.4 Manual smoke test in VS Code: go-to-definition, find-references, and completion on a sample .compact file
