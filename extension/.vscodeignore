@@ -1,0 +1,6 @@
+**
+!out/**
+!server/out/**
+!package.json
+!LICENSE
+!README.md

@@ -1,14 +1,31 @@
 {
   "name": "compact-lsp-server",
   "version": "0.1.0",
-  "private": true,
+  "description": "Language Server Protocol (LSP) server for the Compact smart contract language",
+  "license": "Apache-2.0",
+  "author": "Adam Reynolds <adam@adamreynolds.io>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adamreynolds-io/compact-lsp.git",
+    "directory": "server"
+  },
+  "keywords": [
+    "compact",
+    "lsp",
+    "language-server",
+    "smart-contracts"
+  ],
+  "files": [
+    "out"
+  ],
   "main": "out/server.js",
   "bin": {
     "compact-lsp": "out/server.js"
   },
   "scripts": {
     "build": "tsc -b && node -e \"const fs=require('fs');const f='out/server.js';const c=fs.readFileSync(f,'utf8');if(!c.startsWith('#!'))fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c);\" && chmod +x out/server.js",
-    "watch": "tsc -b -w"
+    "watch": "tsc -b -w",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "vscode-languageserver": "^9.0.0",

@@ -4,3 +4,5 @@ dist/
 *.js.map
 *.tsbuildinfo
 .vscode-test/
+extension/server/
+*.vsix

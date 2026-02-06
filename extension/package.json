@@ -3,7 +3,13 @@
   "displayName": "Compact Language Support",
   "description": "Language support for Compact smart contract files",
   "version": "0.1.0",
-  "private": true,
+  "publisher": "YOUR-PUBLISHER-ID",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adamreynolds-io/compact-lsp.git",
+    "directory": "extension"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -29,6 +35,11 @@
     ]
   },
   "scripts": {
+    "vscode:prepublish": "npm run build:server && npm run build:extension && npm run bundle:server",
+    "build:server": "cd ../server && npm run build",
+    "build:extension": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
+    "bundle:server": "mkdir -p server/out && cp ../server/out/* server/out/",
+    "package": "vsce package --no-dependencies",
     "build": "tsc -b",
     "watch": "tsc -b -w"
   },
@@ -38,6 +49,7 @@
   "devDependencies": {
     "@types/node": "^25.2.1",
     "@types/vscode": "^1.85.0",
+    "esbuild": "^0.21.0",
     "typescript": "^5.5.0"
   }
 }

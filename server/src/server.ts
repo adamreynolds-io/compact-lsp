@@ -55,9 +55,7 @@ import { computeVersionDiagnostics } from './versionDiagnostics';
 // Handle CLI flags before starting the LSP connection
 const args = process.argv.slice(2);
 if (args.includes('--version')) {
-  const pkg = JSON.parse(
-    fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')
-  );
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
   process.stdout.write(`compact-lsp ${pkg.version}\n`);
   process.exit(0);
 }
