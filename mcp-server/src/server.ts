@@ -11,7 +11,10 @@ import { prepareRename, getRenameEdits } from 'compact-lsp-server/out/rename.js'
 import { getSignatureHelp } from 'compact-lsp-server/out/signatureHelp.js';
 import { CompactWorkspace } from './workspace.js';
 
-function formatRange(range: { start: { line: number; column: number }; end: { line: number; column: number } }) {
+function formatRange(range: {
+  start: { line: number; column: number };
+  end: { line: number; column: number };
+}) {
   return {
     start: { line: range.start.line, column: range.start.column },
     end: { line: range.end.line, column: range.end.column },
@@ -29,10 +32,17 @@ export function createServer(workspace: CompactWorkspace): McpServer {
   server.registerTool(
     'compact_diagnostics',
     {
-      description: 'Run the full diagnostic pipeline on a Compact file and return structured results (parse errors, undefined references, import errors, lint warnings, version diagnostics)',
+      description:
+        'Run the full diagnostic pipeline on a Compact file and return structured results (parse errors, undefined references, import errors, lint warnings, version diagnostics)',
       inputSchema: {
-        uri: z.string().optional().describe('File URI (file:///...) of a .compact file in the workspace'),
-        source: z.string().optional().describe('Inline Compact source code to analyze (no cross-file resolution)'),
+        uri: z
+          .string()
+          .optional()
+          .describe('File URI (file:///...) of a .compact file in the workspace'),
+        source: z
+          .string()
+          .optional()
+          .describe('Inline Compact source code to analyze (no cross-file resolution)'),
       },
     },
     async ({ uri, source }) => {
@@ -43,11 +53,17 @@ export function createServer(workspace: CompactWorkspace): McpServer {
         };
       }
       if (!uri) {
-        return { content: [{ type: 'text' as const, text: 'Error: provide either "uri" or "source"' }], isError: true };
+        return {
+          content: [{ type: 'text' as const, text: 'Error: provide either "uri" or "source"' }],
+          isError: true,
+        };
       }
       const result = workspace.getDiagnosticsForFile(uri);
       if (!result) {
-        return { content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }], isError: true };
+        return {
+          content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }],
+          isError: true,
+        };
       }
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(result.diagnostics, null, 2) }],
@@ -58,7 +74,8 @@ export function createServer(workspace: CompactWorkspace): McpServer {
   server.registerTool(
     'compact_hover',
     {
-      description: 'Get type information and documentation for a symbol at a specific position in a Compact file',
+      description:
+        'Get type information and documentation for a symbol at a specific position in a Compact file',
       inputSchema: {
         uri: z.string().describe('File URI (file:///...) of a .compact file'),
         line: z.number().describe('Zero-based line number'),
@@ -68,7 +85,10 @@ export function createServer(workspace: CompactWorkspace): McpServer {
     async ({ uri, line, column }) => {
       const analysis = workspace.analyzeUri(uri);
       if (!analysis) {
-        return { content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }], isError: true };
+        return {
+          content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }],
+          isError: true,
+        };
       }
       const result = getHoverInfo(
         analysis.parseResult,
@@ -82,14 +102,20 @@ export function createServer(workspace: CompactWorkspace): McpServer {
         return { content: [{ type: 'text' as const, text: 'null' }] };
       }
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            contents: result.contents,
-            documentation: result.documentation,
-            range: formatRange(result.range),
-          }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                contents: result.contents,
+                documentation: result.documentation,
+                range: formatRange(result.range),
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   );
@@ -97,7 +123,8 @@ export function createServer(workspace: CompactWorkspace): McpServer {
   server.registerTool(
     'compact_definition',
     {
-      description: 'Find the definition location of a symbol at a specific position in a Compact file',
+      description:
+        'Find the definition location of a symbol at a specific position in a Compact file',
       inputSchema: {
         uri: z.string().describe('File URI (file:///...) of a .compact file'),
         line: z.number().describe('Zero-based line number'),
@@ -107,7 +134,10 @@ export function createServer(workspace: CompactWorkspace): McpServer {
     async ({ uri, line, column }) => {
       const analysis = workspace.analyzeUri(uri);
       if (!analysis) {
-        return { content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }], isError: true };
+        return {
+          content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }],
+          isError: true,
+        };
       }
       const result = getDefinition(
         analysis.parseResult,
@@ -122,13 +152,19 @@ export function createServer(workspace: CompactWorkspace): McpServer {
         return { content: [{ type: 'text' as const, text: 'null' }] };
       }
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            uri: result.uri || uri,
-            range: formatRange(result.range),
-          }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                uri: result.uri || uri,
+                range: formatRange(result.range),
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   );
@@ -136,7 +172,8 @@ export function createServer(workspace: CompactWorkspace): McpServer {
   server.registerTool(
     'compact_references',
     {
-      description: 'Find all locations where a symbol at a specific position is used across the workspace',
+      description:
+        'Find all locations where a symbol at a specific position is used across the workspace',
       inputSchema: {
         uri: z.string().describe('File URI (file:///...) of a .compact file'),
         line: z.number().describe('Zero-based line number'),
@@ -146,7 +183,10 @@ export function createServer(workspace: CompactWorkspace): McpServer {
     async ({ uri, line, column }) => {
       const analysis = workspace.analyzeUri(uri);
       if (!analysis) {
-        return { content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }], isError: true };
+        return {
+          content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }],
+          isError: true,
+        };
       }
       const results = findReferences(
         analysis.parseResult,
@@ -160,17 +200,19 @@ export function createServer(workspace: CompactWorkspace): McpServer {
         uri,
       );
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify(
-            results.map((r) => ({
-              uri: r.uri || uri,
-              range: formatRange(r.range),
-            })),
-            null,
-            2,
-          ),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              results.map((r) => ({
+                uri: r.uri || uri,
+                range: formatRange(r.range),
+              })),
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   );
@@ -188,7 +230,10 @@ export function createServer(workspace: CompactWorkspace): McpServer {
     async ({ uri, line, column }) => {
       const analysis = workspace.analyzeUri(uri);
       if (!analysis) {
-        return { content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }], isError: true };
+        return {
+          content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }],
+          isError: true,
+        };
       }
       const items = getCompletions(
         analysis.parseResult,
@@ -198,19 +243,21 @@ export function createServer(workspace: CompactWorkspace): McpServer {
         workspace.workspaceIndex,
       );
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify(
-            items.map((i) => ({
-              label: i.label,
-              kind: i.kind,
-              detail: i.detail,
-              documentation: i.documentation,
-            })),
-            null,
-            2,
-          ),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              items.map((i) => ({
+                label: i.label,
+                kind: i.kind,
+                detail: i.detail,
+                documentation: i.documentation,
+              })),
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   );
@@ -218,7 +265,8 @@ export function createServer(workspace: CompactWorkspace): McpServer {
   server.registerTool(
     'compact_symbols',
     {
-      description: 'Get the hierarchical symbol outline of a Compact file (modules, circuits, structs, enums, etc.)',
+      description:
+        'Get the hierarchical symbol outline of a Compact file (modules, circuits, structs, enums, etc.)',
       inputSchema: {
         uri: z.string().describe('File URI (file:///...) of a .compact file'),
       },
@@ -226,7 +274,10 @@ export function createServer(workspace: CompactWorkspace): McpServer {
     async ({ uri }) => {
       const analysis = workspace.analyzeUri(uri);
       if (!analysis) {
-        return { content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }], isError: true };
+        return {
+          content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }],
+          isError: true,
+        };
       }
       const symbols = getDocumentSymbols(analysis.parseResult.sourceFile);
       return {
@@ -249,7 +300,10 @@ export function createServer(workspace: CompactWorkspace): McpServer {
     async ({ uri, line, column, newName }) => {
       const analysis = workspace.analyzeUri(uri);
       if (!analysis) {
-        return { content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }], isError: true };
+        return {
+          content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }],
+          isError: true,
+        };
       }
       const canRename = prepareRename(
         analysis.parseResult,
@@ -260,7 +314,10 @@ export function createServer(workspace: CompactWorkspace): McpServer {
         analysis.tokens,
       );
       if (!canRename) {
-        return { content: [{ type: 'text' as const, text: 'Error: position is not renamable' }], isError: true };
+        return {
+          content: [{ type: 'text' as const, text: 'Error: position is not renamable' }],
+          isError: true,
+        };
       }
       const edits = getRenameEdits(
         analysis.parseResult,
@@ -274,18 +331,20 @@ export function createServer(workspace: CompactWorkspace): McpServer {
         uri,
       );
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify(
-            edits.map((e) => ({
-              uri: e.uri || uri,
-              range: formatRange(e.range),
-              newText: e.newText,
-            })),
-            null,
-            2,
-          ),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              edits.map((e) => ({
+                uri: e.uri || uri,
+                range: formatRange(e.range),
+                newText: e.newText,
+              })),
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   );
@@ -293,7 +352,8 @@ export function createServer(workspace: CompactWorkspace): McpServer {
   server.registerTool(
     'compact_signature',
     {
-      description: 'Get parameter hints for a function call at a specific position in a Compact file',
+      description:
+        'Get parameter hints for a function call at a specific position in a Compact file',
       inputSchema: {
         uri: z.string().describe('File URI (file:///...) of a .compact file'),
         line: z.number().describe('Zero-based line number'),
@@ -303,7 +363,10 @@ export function createServer(workspace: CompactWorkspace): McpServer {
     async ({ uri, line, column }) => {
       const analysis = workspace.analyzeUri(uri);
       if (!analysis) {
-        return { content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }], isError: true };
+        return {
+          content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }],
+          isError: true,
+        };
       }
       const result = getSignatureHelp(
         analysis.parseResult,
@@ -317,15 +380,21 @@ export function createServer(workspace: CompactWorkspace): McpServer {
         return { content: [{ type: 'text' as const, text: 'null' }] };
       }
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            label: result.label,
-            parameters: result.parameters,
-            activeParameter: result.activeParameter,
-            documentation: result.documentation,
-          }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                label: result.label,
+                parameters: result.parameters,
+                activeParameter: result.activeParameter,
+                documentation: result.documentation,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   );
@@ -333,9 +402,13 @@ export function createServer(workspace: CompactWorkspace): McpServer {
   server.registerTool(
     'compact_analyze',
     {
-      description: 'Run the full analysis pipeline on a Compact file and return diagnostics, document symbols, and exported symbol names',
+      description:
+        'Run the full analysis pipeline on a Compact file and return diagnostics, document symbols, and exported symbol names',
       inputSchema: {
-        uri: z.string().optional().describe('File URI (file:///...) of a .compact file in the workspace'),
+        uri: z
+          .string()
+          .optional()
+          .describe('File URI (file:///...) of a .compact file in the workspace'),
         source: z.string().optional().describe('Inline Compact source code to analyze'),
       },
     },
@@ -344,27 +417,37 @@ export function createServer(workspace: CompactWorkspace): McpServer {
         const result = workspace.getDiagnosticsForSource(source);
         const symbols = getDocumentSymbols(result.analysis.parseResult.sourceFile);
         return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify({ diagnostics: result.diagnostics, symbols }, null, 2),
-          }],
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ diagnostics: result.diagnostics, symbols }, null, 2),
+            },
+          ],
         };
       }
       if (!uri) {
-        return { content: [{ type: 'text' as const, text: 'Error: provide either "uri" or "source"' }], isError: true };
+        return {
+          content: [{ type: 'text' as const, text: 'Error: provide either "uri" or "source"' }],
+          isError: true,
+        };
       }
       const result = workspace.getDiagnosticsForFile(uri);
       if (!result) {
-        return { content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }], isError: true };
+        return {
+          content: [{ type: 'text' as const, text: `Error: file not found: ${uri}` }],
+          isError: true,
+        };
       }
       const symbols = getDocumentSymbols(result.analysis.parseResult.sourceFile);
       const entry = workspace.workspaceIndex.getFileEntry(uri);
       const exports = entry ? Array.from(entry.exports.keys()) : [];
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({ diagnostics: result.diagnostics, symbols, exports }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ diagnostics: result.diagnostics, symbols, exports }, null, 2),
+          },
+        ],
       };
     },
   );
@@ -372,17 +455,20 @@ export function createServer(workspace: CompactWorkspace): McpServer {
   server.registerTool(
     'compact_refresh',
     {
-      description: 'Re-scan the workspace directory and rebuild the file index. Use after files have been added, removed, or modified externally.',
+      description:
+        'Re-scan the workspace directory and rebuild the file index. Use after files have been added, removed, or modified externally.',
       inputSchema: {},
     },
     async () => {
       workspace.scan();
       const fileCount = workspace.getFileUris().length;
       return {
-        content: [{
-          type: 'text' as const,
-          text: `Workspace refreshed. Found ${fileCount} .compact file(s).`,
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: `Workspace refreshed. Found ${fileCount} .compact file(s).`,
+          },
+        ],
       };
     },
   );
@@ -397,11 +483,13 @@ export function createServer(workspace: CompactWorkspace): McpServer {
       mimeType: 'application/json',
     },
     async (resourceUri) => ({
-      contents: [{
-        uri: resourceUri.href,
-        text: JSON.stringify(workspace.getFileUris(), null, 2),
-        mimeType: 'application/json',
-      }],
+      contents: [
+        {
+          uri: resourceUri.href,
+          text: JSON.stringify(workspace.getFileUris(), null, 2),
+          mimeType: 'application/json',
+        },
+      ],
     }),
   );
 
@@ -418,11 +506,13 @@ export function createServer(workspace: CompactWorkspace): McpServer {
       try {
         const text = fs.readFileSync(fullPath, 'utf-8');
         return {
-          contents: [{
-            uri: resourceUri.href,
-            text,
-            mimeType: 'text/plain',
-          }],
+          contents: [
+            {
+              uri: resourceUri.href,
+              text,
+              mimeType: 'text/plain',
+            },
+          ],
         };
       } catch {
         throw new Error(`File not found: ${filePath}`);

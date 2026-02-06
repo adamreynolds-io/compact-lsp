@@ -29,12 +29,17 @@ function main(): void {
   const server = createServer(workspace);
   const transport = new StdioServerTransport();
 
-  server.connect(transport).then(() => {
-    process.stderr.write('Compact MCP Server running on stdio\n');
-  }).catch((error: unknown) => {
-    process.stderr.write(`Fatal error: ${error instanceof Error ? error.message : String(error)}\n`);
-    process.exit(1);
-  });
+  server
+    .connect(transport)
+    .then(() => {
+      process.stderr.write('Compact MCP Server running on stdio\n');
+    })
+    .catch((error: unknown) => {
+      process.stderr.write(
+        `Fatal error: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      process.exit(1);
+    });
 }
 
 main();

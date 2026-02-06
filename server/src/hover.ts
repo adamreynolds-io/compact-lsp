@@ -103,7 +103,7 @@ function getPragmaVersionHover(
     if (!resolved) {
       contents = `pragma language_version ${operator === '>=' ? '>= ' : ''}${version} (unsupported)`;
     } else if (resolved.fallback) {
-      contents = `pragma language_version >= ${version} (using ${resolved.effectiveVersion})`;
+      contents = `pragma language_version ${operator === '>=' ? '>= ' : ''}${version} (using ${resolved.effectiveVersion})`;
     } else {
       contents = `pragma language_version ${operator === '>=' ? '>= ' : ''}${version} (supported)`;
     }

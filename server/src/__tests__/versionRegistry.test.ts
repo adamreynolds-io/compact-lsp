@@ -3,6 +3,7 @@ import {
   isKnownVersion,
   getVersionCapabilities,
   resolveVersion,
+  getAllBuiltins,
   LANGUAGE_VERSIONS,
 } from '../versionRegistry';
 
@@ -39,8 +40,11 @@ describe('versionRegistry', () => {
       expect(result).toEqual({ effectiveVersion: '0.14.0', fallback: false });
     });
 
-    it('returns undefined for unknown version with = operator', () => {
-      expect(resolveVersion('0.15.0', '=')).toBeUndefined();
+    it('falls forward to latest for unknown version with = operator', () => {
+      const result = resolveVersion('0.15.0', '=');
+      expect(result).toBeDefined();
+      expect(result!.effectiveVersion).toBe('0.21.0');
+      expect(result!.fallback).toBe(true);
     });
 
     it('resolves exact match with >= operator', () => {
@@ -238,6 +242,128 @@ describe('versionRegistry', () => {
     it('exact 0.21.0 resolves', () => {
       const result = resolveVersion('0.21.0', '=');
       expect(result).toEqual({ effectiveVersion: '0.21.0', fallback: false });
+    });
+
+    it('unknown exact version 0.22.0 falls forward to latest', () => {
+      const result = resolveVersion('0.22.0', '=');
+      expect(result).toBeDefined();
+      expect(result!.effectiveVersion).toBe('0.21.0');
+      expect(result!.fallback).toBe(true);
+    });
+
+    it('unknown exact version 99.99.0 falls forward to latest', () => {
+      const result = resolveVersion('99.99.0', '=');
+      expect(result).toBeDefined();
+      expect(result!.effectiveVersion).toBe('0.21.0');
+      expect(result!.fallback).toBe(true);
+    });
+  });
+
+  describe('getAllBuiltins', () => {
+    it('includes both current and removed built-ins', () => {
+      const all = getAllBuiltins();
+      // CurvePoint (removed in 0.19.0) and NativePoint (added in 0.19.0)
+      expect(all.builtinAdtTypes).toContain('CurvePoint');
+      expect(all.builtinAdtTypes).toContain('NativePoint');
+      // NativePointX (removed in 0.20.0) and nativePointX (added in 0.20.0)
+      expect(all.builtinFunctions).toContain('NativePointX');
+      expect(all.builtinFunctions).toContain('nativePointX');
+    });
+
+    it('includes all types from all versions', () => {
+      const all = getAllBuiltins();
+      expect(all.builtinTypes).toContain('Field');
+      expect(all.builtinTypes).toContain('Boolean');
+      expect(all.builtinTypes).toContain('Void');
+    });
+  });
+
+  describe('delta-based capabilities match previous values', () => {
+    it('0.14.0 has correct types', () => {
+      expect(LANGUAGE_VERSIONS['0.14.0'].builtinTypes).toEqual([
+        'Field',
+        'Boolean',
+        'Uint',
+        'Bytes',
+        'Vector',
+        'Opaque',
+        'Void',
+      ]);
+    });
+
+    it('0.14.0 has correct functions', () => {
+      expect(LANGUAGE_VERSIONS['0.14.0'].builtinFunctions).toEqual([
+        'map',
+        'fold',
+        'disclose',
+        'pad',
+        'slice',
+        'default',
+        'transientHash',
+        'transientCommit',
+        'persistentHash',
+        'persistentCommit',
+        'degradeToTransient',
+        'upgradeFromTransient',
+        'ecAdd',
+        'ecMul',
+        'ecMulGenerator',
+        'hashToCurve',
+        'ownPublicKey',
+        'createZswapInput',
+        'createZswapOutput',
+      ]);
+    });
+
+    it('0.14.0 has correct ADT types', () => {
+      expect(LANGUAGE_VERSIONS['0.14.0'].builtinAdtTypes).toEqual([
+        'Counter',
+        'Set',
+        'Map',
+        'List',
+        'MerkleTree',
+        'HistoricMerkleTree',
+        'Cell',
+        'Kernel',
+      ]);
+    });
+
+    it('0.18.0 adds functions and ADT types from 0.14.0', () => {
+      const caps = LANGUAGE_VERSIONS['0.18.0'];
+      expect(caps.builtinFunctions).toContain('left');
+      expect(caps.builtinFunctions).toContain('right');
+      expect(caps.builtinFunctions).toContain('burnAddress');
+      expect(caps.builtinAdtTypes).toContain('CurvePoint');
+      expect(caps.builtinAdtTypes).toContain('Either');
+    });
+
+    it('0.19.0 removes CurvePoint and adds NativePoint', () => {
+      const caps = LANGUAGE_VERSIONS['0.19.0'];
+      expect(caps.builtinAdtTypes).not.toContain('CurvePoint');
+      expect(caps.builtinAdtTypes).toContain('NativePoint');
+      expect(caps.builtinFunctions).toContain('NativePointX');
+      expect(caps.builtinFunctions).toContain('NativePointY');
+    });
+
+    it('0.20.0 renames NativePointX/Y to lowercase and adds constructNativePoint', () => {
+      const caps = LANGUAGE_VERSIONS['0.20.0'];
+      expect(caps.builtinFunctions).not.toContain('NativePointX');
+      expect(caps.builtinFunctions).not.toContain('NativePointY');
+      expect(caps.builtinFunctions).toContain('nativePointX');
+      expect(caps.builtinFunctions).toContain('nativePointY');
+      expect(caps.builtinFunctions).toContain('constructNativePoint');
+    });
+
+    it('0.21.0 is identical to 0.20.0', () => {
+      expect(LANGUAGE_VERSIONS['0.21.0'].builtinTypes).toEqual(
+        LANGUAGE_VERSIONS['0.20.0'].builtinTypes,
+      );
+      expect(LANGUAGE_VERSIONS['0.21.0'].builtinFunctions).toEqual(
+        LANGUAGE_VERSIONS['0.20.0'].builtinFunctions,
+      );
+      expect(LANGUAGE_VERSIONS['0.21.0'].builtinAdtTypes).toEqual(
+        LANGUAGE_VERSIONS['0.20.0'].builtinAdtTypes,
+      );
     });
   });
 });

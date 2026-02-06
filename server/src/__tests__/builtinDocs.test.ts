@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { BUILTIN_DOCS } from '../builtinDocs';
 import { buildSymbolTable } from '../symbols';
 import { parse } from '../parser';
+import { getAllBuiltins } from '../versionRegistry';
 
 const EXPECTED_BUILTINS = [
   // Built-in types
@@ -79,7 +80,7 @@ describe('Built-in Documentation', () => {
 
     // 0.21.0 built-ins (excludes CurvePoint, NativePointX, NativePointY)
     const v21Builtins = EXPECTED_BUILTINS.filter(
-      (n) => !['CurvePoint', 'NativePointX', 'NativePointY'].includes(n)
+      (n) => !['CurvePoint', 'NativePointX', 'NativePointY'].includes(n),
     );
     for (const name of v21Builtins) {
       const sym = root.symbols.get(name);
@@ -116,6 +117,15 @@ describe('Built-in Documentation', () => {
       'constructNativePoint',
     ];
     for (const name of newEntries) {
+      expect(BUILTIN_DOCS[name], `Missing docs for ${name}`).toBeDefined();
+      expect(BUILTIN_DOCS[name].length, `Empty docs for ${name}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('every built-in in the version registry has documentation', () => {
+    const all = getAllBuiltins();
+    const allNames = [...all.builtinTypes, ...all.builtinFunctions, ...all.builtinAdtTypes];
+    for (const name of allNames) {
       expect(BUILTIN_DOCS[name], `Missing docs for ${name}`).toBeDefined();
       expect(BUILTIN_DOCS[name].length, `Empty docs for ${name}`).toBeGreaterThan(0);
     }

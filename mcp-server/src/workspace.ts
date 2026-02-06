@@ -116,7 +116,11 @@ export class CompactWorkspace {
     const analysis = this.analyzeUri(uri);
     if (!analysis) return undefined;
 
-    const diags = computeDiagnostics(analysis.parseResult.errors, analysis.references, analysis.fileScope);
+    const diags = computeDiagnostics(
+      analysis.parseResult.errors,
+      analysis.references,
+      analysis.fileScope,
+    );
     const importDiags = computeImportDiagnostics(
       analysis.parseResult.sourceFile,
       analysis.fileScope,
@@ -124,15 +128,31 @@ export class CompactWorkspace {
       uri,
     );
     diags.push(...importDiags);
-    diags.push(...computeLintDiagnostics(analysis.parseResult.sourceFile, analysis.fileScope, analysis.references));
+    diags.push(
+      ...computeLintDiagnostics(
+        analysis.parseResult.sourceFile,
+        analysis.fileScope,
+        analysis.references,
+      ),
+    );
     diags.push(...computeVersionDiagnostics(analysis.parseResult.sourceFile));
     return { diagnostics: diags, analysis };
   }
 
   getDiagnosticsForSource(source: string) {
     const analysis = this.analyzeSource(source);
-    const diags = computeDiagnostics(analysis.parseResult.errors, analysis.references, analysis.fileScope);
-    diags.push(...computeLintDiagnostics(analysis.parseResult.sourceFile, analysis.fileScope, analysis.references));
+    const diags = computeDiagnostics(
+      analysis.parseResult.errors,
+      analysis.references,
+      analysis.fileScope,
+    );
+    diags.push(
+      ...computeLintDiagnostics(
+        analysis.parseResult.sourceFile,
+        analysis.fileScope,
+        analysis.references,
+      ),
+    );
     diags.push(...computeVersionDiagnostics(analysis.parseResult.sourceFile));
     return { diagnostics: diags, analysis };
   }

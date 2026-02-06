@@ -15,13 +15,14 @@ describe('versionDiagnostics', () => {
     expect(diags).toHaveLength(0);
   });
 
-  it('produces unsupported-version warning for unknown exact version', () => {
+  it('produces version-resolved info for unknown exact version (fall-forward)', () => {
     const { sourceFile } = parse('pragma language_version 99.99.0;');
     const diags = computeVersionDiagnostics(sourceFile);
     expect(diags).toHaveLength(1);
-    expect(diags[0].code).toBe('unsupported-version');
-    expect(diags[0].severity).toBe('warning');
+    expect(diags[0].code).toBe('version-resolved');
+    expect(diags[0].severity).toBe('information');
     expect(diags[0].message).toContain('99.99.0');
+    expect(diags[0].message).toContain('0.21.0');
   });
 
   it('produces no diagnostics for >= version that matches exactly', () => {

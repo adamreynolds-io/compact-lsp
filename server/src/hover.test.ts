@@ -209,11 +209,12 @@ describe('Hover Provider', () => {
       expect(result!.contents).toContain('supported');
     });
 
-    it('shows unsupported for unknown version', () => {
+    it('shows fall-forward for unknown exact version', () => {
       const result = hover('pragma language_version 99.0.0;', 0, 10);
       expect(result).toBeDefined();
       expect(result!.contents).toContain('99.0.0');
-      expect(result!.contents).toContain('unsupported');
+      expect(result!.contents).toContain('using');
+      expect(result!.contents).toContain('0.21.0');
     });
 
     it('shows effective version for >= fallback', () => {

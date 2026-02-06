@@ -20,7 +20,7 @@ import {
   Expression,
 } from './ast';
 import { BUILTIN_DOCS } from './builtinDocs';
-import { resolveVersion, getVersionCapabilities } from './versionRegistry';
+import { resolveVersion, getVersionCapabilities, getAllBuiltins } from './versionRegistry';
 
 export type SymbolKind =
   | 'circuit'
@@ -65,42 +65,6 @@ export interface SymbolTableResult {
   references: Reference[];
 }
 
-const BUILTIN_TYPES = ['Field', 'Boolean', 'Uint', 'Bytes', 'Vector', 'Opaque', 'Void'];
-
-const BUILTIN_FUNCTIONS = [
-  'map',
-  'fold',
-  'disclose',
-  'pad',
-  'slice',
-  'default',
-  'transientHash',
-  'transientCommit',
-  'persistentHash',
-  'persistentCommit',
-  'degradeToTransient',
-  'upgradeFromTransient',
-  'ecAdd',
-  'ecMul',
-  'ecMulGenerator',
-  'hashToCurve',
-  'ownPublicKey',
-  'createZswapInput',
-  'createZswapOutput',
-];
-
-// Ledger ADT types registered as known types for member completion
-const LEDGER_ADT_TYPES = [
-  'Counter',
-  'Set',
-  'Map',
-  'List',
-  'MerkleTree',
-  'HistoricMerkleTree',
-  'Cell',
-  'Kernel',
-];
-
 export function createRootScope(effectiveVersion?: string): Scope {
   const root: Scope = {
     name: '<root>',
@@ -115,11 +79,11 @@ export function createRootScope(effectiveVersion?: string): Scope {
   };
 
   // If an effective version is provided and recognized, use its built-ins;
-  // otherwise fall back to all built-ins (current behavior)
-  const caps = effectiveVersion ? getVersionCapabilities(effectiveVersion) : undefined;
-  const types = caps ? caps.builtinTypes : BUILTIN_TYPES;
-  const funcs = caps ? caps.builtinFunctions : BUILTIN_FUNCTIONS;
-  const adtTypes = caps ? caps.builtinAdtTypes : LEDGER_ADT_TYPES;
+  // otherwise fall back to the union of all built-ins
+  const caps = (effectiveVersion && getVersionCapabilities(effectiveVersion)) || getAllBuiltins();
+  const types = caps.builtinTypes;
+  const funcs = caps.builtinFunctions;
+  const adtTypes = caps.builtinAdtTypes;
 
   for (const name of types) {
     root.symbols.set(name, {

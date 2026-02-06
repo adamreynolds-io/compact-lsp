@@ -4,10 +4,21 @@ export interface VersionCapabilities {
   builtinAdtTypes: string[];
 }
 
-export const LANGUAGE_VERSIONS: Record<string, VersionCapabilities> = {
-  '0.14.0': {
-    builtinTypes: ['Field', 'Boolean', 'Uint', 'Bytes', 'Vector', 'Opaque', 'Void'],
-    builtinFunctions: [
+interface VersionDelta {
+  version: string;
+  addTypes?: string[];
+  removeTypes?: string[];
+  addFunctions?: string[];
+  removeFunctions?: string[];
+  addAdtTypes?: string[];
+  removeAdtTypes?: string[];
+}
+
+const VERSION_CHAIN: VersionDelta[] = [
+  {
+    version: '0.14.0',
+    addTypes: ['Field', 'Boolean', 'Uint', 'Bytes', 'Vector', 'Opaque', 'Void'],
+    addFunctions: [
       'map',
       'fold',
       'disclose',
@@ -28,7 +39,7 @@ export const LANGUAGE_VERSIONS: Record<string, VersionCapabilities> = {
       'createZswapInput',
       'createZswapOutput',
     ],
-    builtinAdtTypes: [
+    addAdtTypes: [
       'Counter',
       'Set',
       'Map',
@@ -39,183 +50,74 @@ export const LANGUAGE_VERSIONS: Record<string, VersionCapabilities> = {
       'Kernel',
     ],
   },
-  '0.18.0': {
-    builtinTypes: ['Field', 'Boolean', 'Uint', 'Bytes', 'Vector', 'Opaque', 'Void'],
-    builtinFunctions: [
-      'map',
-      'fold',
-      'disclose',
-      'pad',
-      'slice',
-      'default',
-      'transientHash',
-      'transientCommit',
-      'persistentHash',
-      'persistentCommit',
-      'degradeToTransient',
-      'upgradeFromTransient',
-      'ecAdd',
-      'ecMul',
-      'ecMulGenerator',
-      'hashToCurve',
-      'ownPublicKey',
-      'createZswapInput',
-      'createZswapOutput',
-      'left',
-      'right',
-      'burnAddress',
-    ],
-    builtinAdtTypes: [
-      'Counter',
-      'Set',
-      'Map',
-      'List',
-      'MerkleTree',
-      'HistoricMerkleTree',
-      'Cell',
-      'Kernel',
-      'Either',
-      'ZswapCoinPublicKey',
-      'ContractAddress',
-      'Maybe',
-      'CurvePoint',
-    ],
+  {
+    version: '0.18.0',
+    addFunctions: ['left', 'right', 'burnAddress'],
+    addAdtTypes: ['Either', 'ZswapCoinPublicKey', 'ContractAddress', 'Maybe', 'CurvePoint'],
   },
-  '0.19.0': {
-    builtinTypes: ['Field', 'Boolean', 'Uint', 'Bytes', 'Vector', 'Opaque', 'Void'],
-    builtinFunctions: [
-      'map',
-      'fold',
-      'disclose',
-      'pad',
-      'slice',
-      'default',
-      'transientHash',
-      'transientCommit',
-      'persistentHash',
-      'persistentCommit',
-      'degradeToTransient',
-      'upgradeFromTransient',
-      'ecAdd',
-      'ecMul',
-      'ecMulGenerator',
-      'hashToCurve',
-      'ownPublicKey',
-      'createZswapInput',
-      'createZswapOutput',
-      'left',
-      'right',
-      'burnAddress',
-      'NativePointX',
-      'NativePointY',
-    ],
-    builtinAdtTypes: [
-      'Counter',
-      'Set',
-      'Map',
-      'List',
-      'MerkleTree',
-      'HistoricMerkleTree',
-      'Cell',
-      'Kernel',
-      'Either',
-      'ZswapCoinPublicKey',
-      'ContractAddress',
-      'Maybe',
-      'NativePoint',
-    ],
+  {
+    version: '0.19.0',
+    addFunctions: ['NativePointX', 'NativePointY'],
+    removeAdtTypes: ['CurvePoint'],
+    addAdtTypes: ['NativePoint'],
   },
-  '0.20.0': {
-    builtinTypes: ['Field', 'Boolean', 'Uint', 'Bytes', 'Vector', 'Opaque', 'Void'],
-    builtinFunctions: [
-      'map',
-      'fold',
-      'disclose',
-      'pad',
-      'slice',
-      'default',
-      'transientHash',
-      'transientCommit',
-      'persistentHash',
-      'persistentCommit',
-      'degradeToTransient',
-      'upgradeFromTransient',
-      'ecAdd',
-      'ecMul',
-      'ecMulGenerator',
-      'hashToCurve',
-      'ownPublicKey',
-      'createZswapInput',
-      'createZswapOutput',
-      'left',
-      'right',
-      'burnAddress',
-      'nativePointX',
-      'nativePointY',
-      'constructNativePoint',
-    ],
-    builtinAdtTypes: [
-      'Counter',
-      'Set',
-      'Map',
-      'List',
-      'MerkleTree',
-      'HistoricMerkleTree',
-      'Cell',
-      'Kernel',
-      'Either',
-      'ZswapCoinPublicKey',
-      'ContractAddress',
-      'Maybe',
-      'NativePoint',
-    ],
+  {
+    version: '0.20.0',
+    removeFunctions: ['NativePointX', 'NativePointY'],
+    addFunctions: ['nativePointX', 'nativePointY', 'constructNativePoint'],
   },
-  '0.21.0': {
-    builtinTypes: ['Field', 'Boolean', 'Uint', 'Bytes', 'Vector', 'Opaque', 'Void'],
-    builtinFunctions: [
-      'map',
-      'fold',
-      'disclose',
-      'pad',
-      'slice',
-      'default',
-      'transientHash',
-      'transientCommit',
-      'persistentHash',
-      'persistentCommit',
-      'degradeToTransient',
-      'upgradeFromTransient',
-      'ecAdd',
-      'ecMul',
-      'ecMulGenerator',
-      'hashToCurve',
-      'ownPublicKey',
-      'createZswapInput',
-      'createZswapOutput',
-      'left',
-      'right',
-      'burnAddress',
-      'nativePointX',
-      'nativePointY',
-      'constructNativePoint',
-    ],
-    builtinAdtTypes: [
-      'Counter',
-      'Set',
-      'Map',
-      'List',
-      'MerkleTree',
-      'HistoricMerkleTree',
-      'Cell',
-      'Kernel',
-      'Either',
-      'ZswapCoinPublicKey',
-      'ContractAddress',
-      'Maybe',
-      'NativePoint',
-    ],
+  {
+    version: '0.21.0',
+    // Identical to 0.20.0 — no delta
   },
-};
+];
+
+function applyDelta(prev: VersionCapabilities, delta: VersionDelta): VersionCapabilities {
+  const types = prev.builtinTypes
+    .filter((t) => !delta.removeTypes?.includes(t))
+    .concat(delta.addTypes ?? []);
+  const funcs = prev.builtinFunctions
+    .filter((f) => !delta.removeFunctions?.includes(f))
+    .concat(delta.addFunctions ?? []);
+  const adts = prev.builtinAdtTypes
+    .filter((a) => !delta.removeAdtTypes?.includes(a))
+    .concat(delta.addAdtTypes ?? []);
+  return { builtinTypes: types, builtinFunctions: funcs, builtinAdtTypes: adts };
+}
+
+function buildVersionCapabilities(): Record<string, VersionCapabilities> {
+  const result: Record<string, VersionCapabilities> = {};
+  const empty: VersionCapabilities = {
+    builtinTypes: [],
+    builtinFunctions: [],
+    builtinAdtTypes: [],
+  };
+  let prev = empty;
+  for (const delta of VERSION_CHAIN) {
+    const caps = applyDelta(prev, delta);
+    result[delta.version] = caps;
+    prev = caps;
+  }
+  return result;
+}
+
+export const LANGUAGE_VERSIONS: Record<string, VersionCapabilities> = buildVersionCapabilities();
+
+export function getAllBuiltins(): VersionCapabilities {
+  const types = new Set<string>();
+  const funcs = new Set<string>();
+  const adts = new Set<string>();
+  for (const caps of Object.values(LANGUAGE_VERSIONS)) {
+    for (const t of caps.builtinTypes) types.add(t);
+    for (const f of caps.builtinFunctions) funcs.add(f);
+    for (const a of caps.builtinAdtTypes) adts.add(a);
+  }
+  return {
+    builtinTypes: [...types],
+    builtinFunctions: [...funcs],
+    builtinAdtTypes: [...adts],
+  };
+}
 
 export function isKnownVersion(version: string): boolean {
   return version in LANGUAGE_VERSIONS;
@@ -242,9 +144,19 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
+function getLatestVersion(): string {
+  const sorted = Object.keys(LANGUAGE_VERSIONS).sort(compareVersions);
+  return sorted[sorted.length - 1];
+}
+
 export function resolveVersion(version: string, operator: '=' | '>='): ResolvedVersion | undefined {
   if (operator === '=') {
-    return LANGUAGE_VERSIONS[version] ? { effectiveVersion: version, fallback: false } : undefined;
+    if (LANGUAGE_VERSIONS[version]) {
+      return { effectiveVersion: version, fallback: false };
+    }
+    // Fall forward to latest known version
+    const latest = getLatestVersion();
+    return { effectiveVersion: latest, fallback: true };
   }
 
   // operator === '>='

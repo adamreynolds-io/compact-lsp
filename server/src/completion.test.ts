@@ -11,44 +11,11 @@ function completions(source: string, line: number, column: number) {
   return getCompletions(result, fileScope, line, column);
 }
 
-const BUILTIN_TYPES = [
-  'Field',
-  'Boolean',
-  'Uint',
-  'Bytes',
-  'Vector',
-  'Opaque',
-  'Void',
-  'Counter',
-  'Set',
-  'Map',
-  'List',
-  'MerkleTree',
-  'HistoricMerkleTree',
-  'Cell',
-  'Kernel',
-];
-const BUILTIN_FUNCTIONS = [
-  'map',
-  'fold',
-  'disclose',
-  'pad',
-  'slice',
-  'default',
-  'transientHash',
-  'transientCommit',
-  'persistentHash',
-  'persistentCommit',
-  'degradeToTransient',
-  'upgradeFromTransient',
-  'ecAdd',
-  'ecMul',
-  'ecMulGenerator',
-  'hashToCurve',
-  'ownPublicKey',
-  'createZswapInput',
-  'createZswapOutput',
-];
+import { getAllBuiltins } from './versionRegistry';
+
+const allBuiltins = getAllBuiltins();
+const BUILTIN_TYPES = [...allBuiltins.builtinTypes, ...allBuiltins.builtinAdtTypes];
+const BUILTIN_FUNCTIONS = allBuiltins.builtinFunctions;
 const ALL_BUILTINS = [...BUILTIN_TYPES, ...BUILTIN_FUNCTIONS];
 
 describe('Completion Provider', () => {

@@ -65,7 +65,9 @@ describe('CompactWorkspace', () => {
 
   it('getDiagnosticsForSource returns empty diagnostics for valid code', () => {
     const ws = new CompactWorkspace(tmpDir);
-    const result = ws.getDiagnosticsForSource('module Test { circuit f(x: Field): Field { return x; } }');
+    const result = ws.getDiagnosticsForSource(
+      'module Test { circuit f(x: Field): Field { return x; } }',
+    );
     // Should have no errors (may have lint warnings like unused param)
     const errors = result.diagnostics.filter((d) => d.severity === 'error');
     expect(errors.length).toBe(0);
