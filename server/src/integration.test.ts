@@ -139,9 +139,9 @@ contract MyContract {
       const result = parse(source);
       expect(result.errors).toHaveLength(0);
 
-      const { fileScope } = buildSymbolTable(result.sourceFile);
+      const { fileScope, references } = buildSymbolTable(result.sourceFile);
       // 'bar' on line 2 at column 9
-      const defResult = getDefinition(result, fileScope, 2, 9, source);
+      const defResult = getDefinition(result, fileScope, references, 2, 9, source);
       expect(defResult).toBeDefined();
       expect(defResult!.range.start.line).toBe(0);
       expect(defResult!.range.start.column).toBe(0);

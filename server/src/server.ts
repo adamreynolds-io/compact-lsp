@@ -111,6 +111,7 @@ connection.onDefinition((params): Location | undefined => {
   const result = getDefinition(
     state.parseResult,
     state.fileScope,
+    state.references,
     params.position.line,
     params.position.character,
     state.source,

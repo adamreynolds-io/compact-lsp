@@ -5,8 +5,8 @@ import { getDefinition } from './definition';
 
 function definition(source: string, line: number, column: number) {
   const result = parse(source);
-  const { fileScope } = buildSymbolTable(result.sourceFile);
-  return getDefinition(result, fileScope, line, column, source);
+  const { fileScope, references } = buildSymbolTable(result.sourceFile);
+  return getDefinition(result, fileScope, references, line, column, source);
 }
 
 describe('Definition Provider', () => {
@@ -44,9 +44,7 @@ describe('Definition Provider', () => {
   });
 
   describe('local variable reference', () => {
-    it('returns undefined for const statement local variable (declaration field is undefined)', () => {
-      // Const statement locals in circuit bodies have declaration: undefined
-      // in the symbol table, so getDefinition treats them like built-ins.
+    it('resolves const statement local variable to its declaration', () => {
       // Line 0: circuit foo(x: Field) : Field {
       // Line 1:   const y = x;
       // Line 2:   return y;
@@ -54,8 +52,24 @@ describe('Definition Provider', () => {
       const source = 'circuit foo(x: Field) : Field {\n  const y = x;\n  return y;\n}';
       // 'y' on line 2 is at column 9
       const result = definition(source, 2, 9);
-      // Local const statements have declaration: undefined, so no definition result
-      expect(result).toBeUndefined();
+      expect(result).toBeDefined();
+      // const y declaration is on line 1
+      expect(result!.range.start.line).toBe(1);
+    });
+
+    it('resolves for-loop variable to the for statement', () => {
+      // Line 0: circuit foo(items: Field) : Void {
+      // Line 1:   for (const i of items) {
+      // Line 2:     i;
+      // Line 3:   }
+      // Line 4: }
+      const source =
+        'circuit foo(items: Field) : Void {\n  for (const i of items) {\n    i;\n  }\n}';
+      // 'i' on line 2 is at column 4
+      const result = definition(source, 2, 4);
+      expect(result).toBeDefined();
+      // for statement is on line 1
+      expect(result!.range.start.line).toBe(1);
     });
 
     it('resolves top-level const declaration', () => {
