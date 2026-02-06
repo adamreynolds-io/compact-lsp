@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parse } from './parser';
+import { buildSymbolTable } from './symbols';
 import { computeDiagnostics } from './diagnostics';
 
 describe('Diagnostics Provider', () => {
@@ -49,6 +50,69 @@ describe('Diagnostics Provider', () => {
       expect(diagnostics[0].range).toBeDefined();
       expect(diagnostics[0].range.start).toBeDefined();
       expect(diagnostics[0].range.end).toBeDefined();
+    });
+  });
+
+  describe('undefined references', () => {
+    it('reports error for undefined variable inside circuit body', () => {
+      const source = 'circuit foo() : Void {\n  unknown;\n}';
+      const result = parse(source);
+      const { fileScope, references } = buildSymbolTable(result.sourceFile);
+      const diagnostics = computeDiagnostics(result.errors, references, fileScope);
+      const undefDiag = diagnostics.find((d) => d.message.includes("'unknown' is not defined"));
+      expect(undefDiag).toBeDefined();
+      expect(undefDiag!.severity).toBe('error');
+    });
+
+    it('does not report error for parameter reference inside body', () => {
+      const source = 'circuit foo(x: Field) : Field {\n  return x;\n}';
+      const result = parse(source);
+      const { fileScope, references } = buildSymbolTable(result.sourceFile);
+      const diagnostics = computeDiagnostics(result.errors, references, fileScope);
+      const undefDiag = diagnostics.find((d) => d.message.includes('is not defined'));
+      expect(undefDiag).toBeUndefined();
+    });
+
+    it('does not report error for local variable reference', () => {
+      const source = 'circuit foo(x: Field) : Field {\n  const y = x;\n  return y;\n}';
+      const result = parse(source);
+      const { fileScope, references } = buildSymbolTable(result.sourceFile);
+      const diagnostics = computeDiagnostics(result.errors, references, fileScope);
+      const undefDiag = diagnostics.find((d) => d.message.includes('is not defined'));
+      expect(undefDiag).toBeUndefined();
+    });
+
+    it('does not report error for built-in types', () => {
+      // Field and Boolean are built-in types, should not be flagged
+      const source = 'circuit foo(x: Field) : Boolean {\n  return Field;\n}';
+      const result = parse(source);
+      const { fileScope, references } = buildSymbolTable(result.sourceFile);
+      const diagnostics = computeDiagnostics(result.errors, references, fileScope);
+      const undefDiag = diagnostics.find((d) => d.message.includes('is not defined'));
+      expect(undefDiag).toBeUndefined();
+    });
+
+    it('does not report error for built-in functions', () => {
+      // map and fold are built-in functions
+      const source = 'circuit foo(x: Field) : Field {\n  map;\n  fold;\n}';
+      const result = parse(source);
+      const { fileScope, references } = buildSymbolTable(result.sourceFile);
+      const diagnostics = computeDiagnostics(result.errors, references, fileScope);
+      const undefDiag = diagnostics.find((d) => d.message.includes('is not defined'));
+      expect(undefDiag).toBeUndefined();
+    });
+
+    it('reports error for out-of-scope local variable', () => {
+      // y is declared inside an if block and should not be visible outside
+      // Actually, the current parser doesn't create block scopes for if bodies...
+      // Let me use a different approach: variable defined in one circuit is not visible in another
+      const source = 'circuit foo() : Void {\n  const y = 1;\n}\ncircuit bar() : Void {\n  y;\n}';
+      const result = parse(source);
+      const { fileScope, references } = buildSymbolTable(result.sourceFile);
+      const diagnostics = computeDiagnostics(result.errors, references, fileScope);
+      const undefDiag = diagnostics.find((d) => d.message.includes("'y' is not defined"));
+      expect(undefDiag).toBeDefined();
+      expect(undefDiag!.severity).toBe('error');
     });
   });
 });

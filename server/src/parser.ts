@@ -28,6 +28,8 @@ import {
   SourceRange,
   ParseError,
   ParseResult,
+  Expression,
+  Statement,
 } from './ast';
 
 const DECLARATION_KEYWORDS = new Set<TokenKind>([
@@ -48,6 +50,61 @@ const DECLARATION_KEYWORDS = new Set<TokenKind>([
   TokenKind.Include,
   TokenKind.Type,
 ]);
+
+// Precedence levels for Pratt parser (low to high)
+const enum Precedence {
+  None = 0,
+  Assignment = 1, // = += -=
+  Ternary = 2, // ? :
+  Or = 3, // ||
+  And = 4, // &&
+  Equality = 5, // == !=
+  Comparison = 6, // < > <= >=
+  Range = 7, // ..
+  Additive = 8, // + -
+  Multiplicative = 9, // *
+  Cast = 10, // as
+  Unary = 11, // !
+  Postfix = 12, // . [] ()
+}
+
+function getInfixPrecedence(kind: TokenKind): Precedence {
+  switch (kind) {
+    case TokenKind.Equals:
+    case TokenKind.PlusEquals:
+    case TokenKind.MinusEquals:
+      return Precedence.Assignment;
+    case TokenKind.Question:
+      return Precedence.Ternary;
+    case TokenKind.Or:
+      return Precedence.Or;
+    case TokenKind.And:
+      return Precedence.And;
+    case TokenKind.DoubleEquals:
+    case TokenKind.NotEquals:
+      return Precedence.Equality;
+    case TokenKind.LessThan:
+    case TokenKind.GreaterThan:
+    case TokenKind.LessEquals:
+    case TokenKind.GreaterEquals:
+      return Precedence.Comparison;
+    case TokenKind.DotDot:
+      return Precedence.Range;
+    case TokenKind.Plus:
+    case TokenKind.Minus:
+      return Precedence.Additive;
+    case TokenKind.Star:
+      return Precedence.Multiplicative;
+    case TokenKind.As:
+      return Precedence.Cast;
+    case TokenKind.Dot:
+    case TokenKind.OpenBracket:
+    case TokenKind.OpenParen:
+      return Precedence.Postfix;
+    default:
+      return Precedence.None;
+  }
+}
 
 class Parser {
   private tokens: Token[];
@@ -176,7 +233,7 @@ class Parser {
     }
 
     // Circuit with body
-    const bodyRange = this.skipBody();
+    const { bodyRange, statements } = this.parseBody();
     const endPos = this.previousPos();
 
     return {
@@ -188,6 +245,7 @@ class Parser {
       isExport,
       isPure,
       bodyRange,
+      body: statements,
       range: { start: startPos, end: endPos },
     };
   }
@@ -347,18 +405,21 @@ class Parser {
     };
   }
 
-  private parseConstructor(
-    startPos: { line: number; column: number; offset: number },
-  ): ConstructorDeclaration {
+  private parseConstructor(startPos: {
+    line: number;
+    column: number;
+    offset: number;
+  }): ConstructorDeclaration {
     this.expect(TokenKind.Constructor);
     const params = this.parseParameterList();
-    const bodyRange = this.skipBody();
+    const { bodyRange, statements } = this.parseBody();
     const endPos = this.previousPos();
 
     return {
       kind: 'ConstructorDeclaration',
       params,
       bodyRange,
+      body: statements,
       range: { start: startPos, end: endPos },
     };
   }
@@ -455,9 +516,11 @@ class Parser {
     };
   }
 
-  private parsePragma(
-    startPos: { line: number; column: number; offset: number },
-  ): PragmaDeclaration {
+  private parsePragma(startPos: {
+    line: number;
+    column: number;
+    offset: number;
+  }): PragmaDeclaration {
     this.expect(TokenKind.Pragma);
     const name = this.expectIdentifier();
     let value = '';
@@ -477,9 +540,11 @@ class Parser {
     };
   }
 
-  private parseImport(
-    startPos: { line: number; column: number; offset: number },
-  ): ImportDeclaration {
+  private parseImport(startPos: {
+    line: number;
+    column: number;
+    offset: number;
+  }): ImportDeclaration {
     this.expect(TokenKind.Import);
     const moduleName = this.expectIdentifier();
     const endPos = this.current().pos;
@@ -492,9 +557,11 @@ class Parser {
     };
   }
 
-  private parseInclude(
-    startPos: { line: number; column: number; offset: number },
-  ): IncludeDeclaration {
+  private parseInclude(startPos: {
+    line: number;
+    column: number;
+    offset: number;
+  }): IncludeDeclaration {
     this.expect(TokenKind.Include);
     let path = '';
     if (this.check(TokenKind.StringLiteral)) {
@@ -670,7 +737,58 @@ class Parser {
     return generics;
   }
 
-  // Body skipping
+  // Body parsing — replaces skipBody for circuit and constructor bodies
+  private parseBody(): { bodyRange: SourceRange | undefined; statements: Statement[] } {
+    if (!this.check(TokenKind.OpenBrace)) {
+      return { bodyRange: undefined, statements: [] };
+    }
+
+    const startPos = this.current().pos;
+    this.advance(); // consume '{'
+
+    const statements: Statement[] = [];
+    try {
+      while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
+        const stmt = this.parseStatement();
+        if (stmt) {
+          statements.push(stmt);
+        }
+      }
+    } catch {
+      // Fallback to brace matching on unrecoverable error
+      this.fallbackBraceMatch();
+      const endPos = this.current().pos;
+      if (this.check(TokenKind.CloseBrace)) {
+        this.advance();
+      }
+      return {
+        bodyRange: { start: startPos, end: endPos },
+        statements,
+      };
+    }
+
+    const endPos = this.current().pos;
+    if (this.check(TokenKind.CloseBrace)) {
+      this.advance();
+    }
+
+    return {
+      bodyRange: { start: startPos, end: endPos },
+      statements,
+    };
+  }
+
+  // Fallback brace matching — used when statement parser hits unrecoverable errors
+  private fallbackBraceMatch(): void {
+    let depth = 1;
+    while (depth > 0 && !this.isAtEnd()) {
+      if (this.check(TokenKind.OpenBrace)) depth++;
+      if (this.check(TokenKind.CloseBrace)) depth--;
+      if (depth > 0) this.advance();
+    }
+  }
+
+  // Body skipping — kept for contract bodies etc. that don't need parsing
   private skipBody(): SourceRange | undefined {
     if (!this.check(TokenKind.OpenBrace)) return undefined;
     const startPos = this.current().pos;
@@ -689,6 +807,656 @@ class Parser {
     }
 
     return { start: startPos, end: endPos };
+  }
+
+  // Statement parsing
+  private parseStatement(): Statement | null {
+    const startPos = this.current().pos;
+
+    try {
+      switch (this.current().kind) {
+        case TokenKind.Const:
+          return this.parseConstStatement();
+        case TokenKind.Return:
+          return this.parseReturnStatement();
+        case TokenKind.If:
+          return this.parseIfStatement();
+        case TokenKind.For:
+          return this.parseForStatement();
+        case TokenKind.Assert:
+          return this.parseAssertStatement();
+        case TokenKind.OpenBrace:
+          return this.parseBlockStatement();
+        default:
+          return this.parseExpressionStatement();
+      }
+    } catch {
+      // Statement-level error recovery: synchronize at ; or }
+      return this.recoverToStatementBoundary(startPos);
+    }
+  }
+
+  private parseConstStatement(): Statement {
+    const startPos = this.current().pos;
+    this.expect(TokenKind.Const);
+    const name = this.expectIdentifier();
+
+    let typeAnnotation: TypeNode | undefined;
+    if (this.check(TokenKind.Colon)) {
+      this.advance();
+      typeAnnotation = this.parseType();
+    }
+
+    this.expect(TokenKind.Equals);
+    const initializer = this.parseExpression(Precedence.None);
+    const endPos = this.current().pos;
+    this.expect(TokenKind.Semicolon);
+
+    return {
+      kind: 'ConstStatement',
+      name,
+      typeAnnotation,
+      initializer,
+      range: { start: startPos, end: endPos },
+    };
+  }
+
+  private parseReturnStatement(): Statement {
+    const startPos = this.current().pos;
+    this.expect(TokenKind.Return);
+
+    let value: Expression | undefined;
+    if (!this.check(TokenKind.Semicolon) && !this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
+      value = this.parseExpression(Precedence.None);
+    }
+
+    const endPos = this.current().pos;
+    this.expect(TokenKind.Semicolon);
+
+    return {
+      kind: 'ReturnStatement',
+      value,
+      range: { start: startPos, end: endPos },
+    };
+  }
+
+  private parseIfStatement(): Statement {
+    const startPos = this.current().pos;
+    this.expect(TokenKind.If);
+    this.expect(TokenKind.OpenParen);
+    const condition = this.parseExpression(Precedence.None);
+    this.expect(TokenKind.CloseParen);
+
+    this.expect(TokenKind.OpenBrace);
+    const consequent: Statement[] = [];
+    while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
+      const stmt = this.parseStatement();
+      if (stmt) consequent.push(stmt);
+    }
+    this.expect(TokenKind.CloseBrace);
+
+    let alternate: Statement[] | undefined;
+    if (this.check(TokenKind.Else)) {
+      this.advance();
+      if (this.check(TokenKind.If)) {
+        // else if — wrap as single-element array
+        const elseIf = this.parseIfStatement();
+        if (elseIf) alternate = [elseIf];
+      } else {
+        this.expect(TokenKind.OpenBrace);
+        alternate = [];
+        while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
+          const stmt = this.parseStatement();
+          if (stmt) alternate.push(stmt);
+        }
+        this.expect(TokenKind.CloseBrace);
+      }
+    }
+
+    const endPos = this.previousPos();
+    return {
+      kind: 'IfStatement',
+      condition,
+      consequent,
+      alternate,
+      range: { start: startPos, end: endPos },
+    };
+  }
+
+  private parseForStatement(): Statement {
+    const startPos = this.current().pos;
+    this.expect(TokenKind.For);
+    this.expect(TokenKind.OpenParen);
+
+    // for (const i of items)
+    this.expect(TokenKind.Const);
+    const variable = this.expectIdentifier();
+    this.expect(TokenKind.Of);
+    const iterable = this.parseExpression(Precedence.None);
+    this.expect(TokenKind.CloseParen);
+
+    this.expect(TokenKind.OpenBrace);
+    const body: Statement[] = [];
+    while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
+      const stmt = this.parseStatement();
+      if (stmt) body.push(stmt);
+    }
+    this.expect(TokenKind.CloseBrace);
+
+    const endPos = this.previousPos();
+    return {
+      kind: 'ForStatement',
+      variable,
+      iterable,
+      body,
+      range: { start: startPos, end: endPos },
+    };
+  }
+
+  private parseAssertStatement(): Statement {
+    const startPos = this.current().pos;
+    this.expect(TokenKind.Assert);
+    this.expect(TokenKind.OpenParen);
+    const condition = this.parseExpression(Precedence.None);
+    this.expect(TokenKind.CloseParen);
+    const endPos = this.current().pos;
+    this.expect(TokenKind.Semicolon);
+
+    return {
+      kind: 'AssertStatement',
+      condition,
+      range: { start: startPos, end: endPos },
+    };
+  }
+
+  private parseBlockStatement(): Statement {
+    const startPos = this.current().pos;
+    this.expect(TokenKind.OpenBrace);
+    const statements: Statement[] = [];
+    while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
+      const stmt = this.parseStatement();
+      if (stmt) statements.push(stmt);
+    }
+    const endPos = this.current().pos;
+    this.expect(TokenKind.CloseBrace);
+
+    return {
+      kind: 'BlockStatement',
+      statements,
+      range: { start: startPos, end: endPos },
+    };
+  }
+
+  private parseExpressionStatement(): Statement {
+    const startPos = this.current().pos;
+    const expression = this.parseExpression(Precedence.None);
+    const endPos = this.current().pos;
+    this.expect(TokenKind.Semicolon);
+
+    return {
+      kind: 'ExpressionStatement',
+      expression,
+      range: { start: startPos, end: endPos },
+    };
+  }
+
+  // Statement-level error recovery
+  private recoverToStatementBoundary(startPos: {
+    line: number;
+    column: number;
+    offset: number;
+  }): Statement {
+    const message = `Unexpected token '${this.current().text}'`;
+    this.errors.push({
+      message,
+      range: { start: startPos, end: this.current().pos },
+    });
+
+    // Synchronize at ; or }
+    while (!this.isAtEnd()) {
+      if (this.check(TokenKind.Semicolon)) {
+        this.advance();
+        break;
+      }
+      if (this.check(TokenKind.CloseBrace)) {
+        break; // don't consume — let the parent handle it
+      }
+      this.advance();
+    }
+
+    return {
+      kind: 'ErrorStatement',
+      message,
+      range: { start: startPos, end: this.previousPos() },
+    };
+  }
+
+  // Pratt expression parser
+  private parseExpression(minPrec: Precedence): Expression {
+    let left = this.parsePrefixExpression();
+
+    while (!this.isAtEnd()) {
+      const prec = getInfixPrecedence(this.current().kind);
+      if (prec <= minPrec) break;
+
+      left = this.parseInfixExpression(left, prec);
+    }
+
+    return left;
+  }
+
+  private parsePrefixExpression(): Expression {
+    const startPos = this.current().pos;
+
+    switch (this.current().kind) {
+      case TokenKind.Identifier: {
+        const token = this.advance();
+        const identExpr: Expression = {
+          kind: 'IdentifierExpression',
+          name: token.text,
+          range: {
+            start: startPos,
+            end: {
+              line: startPos.line,
+              column: startPos.column + token.text.length,
+              offset: startPos.offset + token.text.length,
+            },
+          },
+        };
+        // Check for struct construction: Name { field: value, ... }
+        if (this.check(TokenKind.OpenBrace) && this.looksLikeStructConstruction()) {
+          return this.parseStructConstruction(token.text, startPos);
+        }
+        return identExpr;
+      }
+
+      case TokenKind.TypeKeyword: {
+        const token = this.advance();
+        return {
+          kind: 'IdentifierExpression',
+          name: token.text,
+          range: {
+            start: startPos,
+            end: {
+              line: startPos.line,
+              column: startPos.column + token.text.length,
+              offset: startPos.offset + token.text.length,
+            },
+          },
+        };
+      }
+
+      case TokenKind.NumberLiteral: {
+        const token = this.advance();
+        return {
+          kind: 'LiteralExpression',
+          value: token.text,
+          literalType: 'number',
+          range: {
+            start: startPos,
+            end: {
+              line: startPos.line,
+              column: startPos.column + token.text.length,
+              offset: startPos.offset + token.text.length,
+            },
+          },
+        };
+      }
+
+      case TokenKind.StringLiteral: {
+        const token = this.advance();
+        return {
+          kind: 'LiteralExpression',
+          value: token.text,
+          literalType: 'string',
+          range: {
+            start: startPos,
+            end: {
+              line: startPos.line,
+              column: startPos.column + token.text.length,
+              offset: startPos.offset + token.text.length,
+            },
+          },
+        };
+      }
+
+      case TokenKind.BooleanLiteral: {
+        const token = this.advance();
+        return {
+          kind: 'LiteralExpression',
+          value: token.text,
+          literalType: 'boolean',
+          range: {
+            start: startPos,
+            end: {
+              line: startPos.line,
+              column: startPos.column + token.text.length,
+              offset: startPos.offset + token.text.length,
+            },
+          },
+        };
+      }
+
+      case TokenKind.Bang: {
+        this.advance();
+        const operand = this.parseExpression(Precedence.Unary);
+        return {
+          kind: 'UnaryExpression',
+          operator: '!',
+          operand,
+          range: { start: startPos, end: operand.range.end },
+        };
+      }
+
+      case TokenKind.OpenParen: {
+        // Could be parenthesized expression or arrow function
+        return this.parseParenExprOrArrow();
+      }
+
+      case TokenKind.OpenBracket: {
+        // Tuple literal: [a, b, c]
+        return this.parseTupleLiteral();
+      }
+
+      default: {
+        // Unrecognized token in expression position — emit error and create synthetic node
+        const token = this.current();
+        this.errors.push({
+          message: `Unexpected token '${token.text}' in expression`,
+          range: { start: startPos, end: startPos },
+        });
+        this.advance();
+        return {
+          kind: 'IdentifierExpression',
+          name: '<error>',
+          range: { start: startPos, end: this.previousPos() },
+        };
+      }
+    }
+  }
+
+  private parseInfixExpression(left: Expression, prec: Precedence): Expression {
+    const kind = this.current().kind;
+
+    // Assignment operators (right-associative)
+    if (
+      kind === TokenKind.Equals ||
+      kind === TokenKind.PlusEquals ||
+      kind === TokenKind.MinusEquals
+    ) {
+      const opToken = this.advance();
+      const right = this.parseExpression(Precedence.Assignment - 1);
+      return {
+        kind: 'AssignmentExpression',
+        operator: opToken.text,
+        target: left,
+        value: right,
+        range: { start: left.range.start, end: right.range.end },
+      };
+    }
+
+    // Ternary conditional
+    if (kind === TokenKind.Question) {
+      this.advance();
+      const consequent = this.parseExpression(Precedence.None);
+      this.expect(TokenKind.Colon);
+      const alternate = this.parseExpression(Precedence.Ternary - 1);
+      return {
+        kind: 'ConditionalExpression',
+        condition: left,
+        consequent,
+        alternate,
+        range: { start: left.range.start, end: alternate.range.end },
+      };
+    }
+
+    // Cast expression
+    if (kind === TokenKind.As) {
+      this.advance();
+      const targetType = this.parseType();
+      return {
+        kind: 'CastExpression',
+        expression: left,
+        targetType,
+        range: { start: left.range.start, end: targetType.range.end },
+      };
+    }
+
+    // Member access
+    if (kind === TokenKind.Dot) {
+      this.advance();
+      const propToken = this.current();
+      const propName = this.expectIdentifier();
+      return {
+        kind: 'MemberExpression',
+        object: left,
+        property: propName,
+        range: {
+          start: left.range.start,
+          end: {
+            line: propToken.pos.line,
+            column: propToken.pos.column + propToken.text.length,
+            offset: propToken.pos.offset + propToken.text.length,
+          },
+        },
+      };
+    }
+
+    // Index access
+    if (kind === TokenKind.OpenBracket) {
+      this.advance();
+      const index = this.parseExpression(Precedence.None);
+      const endPos = this.current().pos;
+      this.expect(TokenKind.CloseBracket);
+      return {
+        kind: 'IndexExpression',
+        object: left,
+        index,
+        range: {
+          start: left.range.start,
+          end: { line: endPos.line, column: endPos.column + 1, offset: endPos.offset + 1 },
+        },
+      };
+    }
+
+    // Function call
+    if (kind === TokenKind.OpenParen) {
+      this.advance();
+      const args: Expression[] = [];
+      while (!this.check(TokenKind.CloseParen) && !this.isAtEnd()) {
+        args.push(this.parseExpression(Precedence.None));
+        if (this.check(TokenKind.Comma)) {
+          this.advance();
+        }
+      }
+      const endPos = this.current().pos;
+      this.expect(TokenKind.CloseParen);
+      return {
+        kind: 'CallExpression',
+        callee: left,
+        args,
+        range: {
+          start: left.range.start,
+          end: { line: endPos.line, column: endPos.column + 1, offset: endPos.offset + 1 },
+        },
+      };
+    }
+
+    // Binary operators
+    const opToken = this.advance();
+    const right = this.parseExpression(prec);
+    return {
+      kind: 'BinaryExpression',
+      operator: opToken.text,
+      left,
+      right,
+      range: { start: left.range.start, end: right.range.end },
+    };
+  }
+
+  // Heuristic: does { after an identifier look like struct construction?
+  // If the next tokens look like `name : expr` it's struct construction.
+  // Otherwise it's likely a block.
+  private looksLikeStructConstruction(): boolean {
+    // Save position and look ahead
+    const saved = this.pos;
+    this.advance(); // skip {
+
+    // Empty braces => struct construction: Point {}
+    if (this.check(TokenKind.CloseBrace)) {
+      this.pos = saved;
+      return true;
+    }
+
+    // Check for identifier : pattern
+    const isIdent = this.check(TokenKind.Identifier) || this.check(TokenKind.TypeKeyword);
+    if (isIdent) {
+      this.advance();
+      const isColon = this.check(TokenKind.Colon);
+      this.pos = saved;
+      return isColon;
+    }
+
+    this.pos = saved;
+    return false;
+  }
+
+  private parseStructConstruction(
+    name: string,
+    startPos: { line: number; column: number; offset: number },
+  ): Expression {
+    this.expect(TokenKind.OpenBrace);
+    const fields: { name: string; value: Expression; range: SourceRange }[] = [];
+
+    while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
+      const fieldStart = this.current().pos;
+      const fieldName = this.expectIdentifier();
+      this.expect(TokenKind.Colon);
+      const value = this.parseExpression(Precedence.None);
+      const fieldEnd = value.range.end;
+      fields.push({
+        name: fieldName,
+        value,
+        range: { start: fieldStart, end: fieldEnd },
+      });
+      if (this.check(TokenKind.Comma)) {
+        this.advance();
+      }
+    }
+
+    const endPos = this.current().pos;
+    this.expect(TokenKind.CloseBrace);
+
+    return {
+      kind: 'StructConstruction',
+      structName: name,
+      fields,
+      range: {
+        start: startPos,
+        end: { line: endPos.line, column: endPos.column + 1, offset: endPos.offset + 1 },
+      },
+    };
+  }
+
+  private parseParenExprOrArrow(): Expression {
+    const startPos = this.current().pos;
+
+    // Try to detect arrow function: (params) => body
+    if (this.looksLikeArrowFunction()) {
+      return this.parseArrowFunction(startPos);
+    }
+
+    // Parenthesized expression
+    this.advance(); // consume (
+    const expr = this.parseExpression(Precedence.None);
+    this.expect(TokenKind.CloseParen);
+    return expr;
+  }
+
+  private looksLikeArrowFunction(): boolean {
+    // Save position and look ahead
+    const saved = this.pos;
+    this.advance(); // skip (
+
+    // () => ... is arrow
+    if (this.check(TokenKind.CloseParen)) {
+      this.advance();
+      const isArrow = this.check(TokenKind.Arrow);
+      this.pos = saved;
+      return isArrow;
+    }
+
+    // (ident: Type, ...) => ... is arrow
+    // (ident) => ... is arrow
+    if (this.check(TokenKind.Identifier) || this.check(TokenKind.TypeKeyword)) {
+      this.advance();
+      if (
+        this.check(TokenKind.Colon) ||
+        this.check(TokenKind.Comma) ||
+        this.check(TokenKind.CloseParen)
+      ) {
+        // Skip to closing paren
+        let depth = 1;
+        // Rewind to just after (
+        this.pos = saved + 1;
+        while (depth > 0 && !this.isAtEnd()) {
+          if (this.check(TokenKind.OpenParen)) depth++;
+          if (this.check(TokenKind.CloseParen)) depth--;
+          if (depth > 0) this.advance();
+        }
+        if (this.check(TokenKind.CloseParen)) {
+          this.advance();
+          const isArrow = this.check(TokenKind.Arrow);
+          this.pos = saved;
+          return isArrow;
+        }
+      }
+    }
+
+    this.pos = saved;
+    return false;
+  }
+
+  private parseArrowFunction(startPos: {
+    line: number;
+    column: number;
+    offset: number;
+  }): Expression {
+    const params = this.parseParameterList();
+    this.expect(TokenKind.Arrow);
+    const body = this.parseExpression(Precedence.None);
+
+    return {
+      kind: 'ArrowFunction',
+      params,
+      body,
+      range: { start: startPos, end: body.range.end },
+    };
+  }
+
+  private parseTupleLiteral(): Expression {
+    const startPos = this.current().pos;
+    this.expect(TokenKind.OpenBracket);
+    const elements: Expression[] = [];
+
+    while (!this.check(TokenKind.CloseBracket) && !this.isAtEnd()) {
+      elements.push(this.parseExpression(Precedence.None));
+      if (this.check(TokenKind.Comma)) {
+        this.advance();
+      }
+    }
+
+    const endPos = this.current().pos;
+    this.expect(TokenKind.CloseBracket);
+
+    return {
+      kind: 'TupleLiteral',
+      elements,
+      range: {
+        start: startPos,
+        end: { line: endPos.line, column: endPos.column + 1, offset: endPos.offset + 1 },
+      },
+    };
   }
 
   private skipUntilSemicolon(): void {

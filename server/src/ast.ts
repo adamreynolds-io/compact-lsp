@@ -69,6 +69,7 @@ export interface CircuitDefinition {
   isExport: boolean;
   isPure: boolean;
   bodyRange: SourceRange | undefined;
+  body: Statement[];
   range: SourceRange;
 }
 
@@ -143,6 +144,7 @@ export interface ConstructorDeclaration {
   kind: 'ConstructorDeclaration';
   params: Parameter[];
   bodyRange: SourceRange | undefined;
+  body: Statement[];
   range: SourceRange;
 }
 
@@ -183,6 +185,185 @@ export interface IncludeDeclaration {
 
 export interface ErrorNode {
   kind: 'ErrorNode';
+  message: string;
+  range: SourceRange;
+}
+
+// Expressions
+export type Expression =
+  | IdentifierExpression
+  | LiteralExpression
+  | BinaryExpression
+  | UnaryExpression
+  | ConditionalExpression
+  | CallExpression
+  | MemberExpression
+  | IndexExpression
+  | TupleLiteral
+  | StructConstruction
+  | CastExpression
+  | ArrowFunction
+  | AssignmentExpression;
+
+export interface IdentifierExpression {
+  kind: 'IdentifierExpression';
+  name: string;
+  range: SourceRange;
+}
+
+export interface LiteralExpression {
+  kind: 'LiteralExpression';
+  value: string;
+  literalType: 'number' | 'string' | 'boolean';
+  range: SourceRange;
+}
+
+export interface BinaryExpression {
+  kind: 'BinaryExpression';
+  operator: string;
+  left: Expression;
+  right: Expression;
+  range: SourceRange;
+}
+
+export interface UnaryExpression {
+  kind: 'UnaryExpression';
+  operator: string;
+  operand: Expression;
+  range: SourceRange;
+}
+
+export interface ConditionalExpression {
+  kind: 'ConditionalExpression';
+  condition: Expression;
+  consequent: Expression;
+  alternate: Expression;
+  range: SourceRange;
+}
+
+export interface CallExpression {
+  kind: 'CallExpression';
+  callee: Expression;
+  args: Expression[];
+  range: SourceRange;
+}
+
+export interface MemberExpression {
+  kind: 'MemberExpression';
+  object: Expression;
+  property: string;
+  range: SourceRange;
+}
+
+export interface IndexExpression {
+  kind: 'IndexExpression';
+  object: Expression;
+  index: Expression;
+  range: SourceRange;
+}
+
+export interface TupleLiteral {
+  kind: 'TupleLiteral';
+  elements: Expression[];
+  range: SourceRange;
+}
+
+export interface StructFieldInit {
+  name: string;
+  value: Expression;
+  range: SourceRange;
+}
+
+export interface StructConstruction {
+  kind: 'StructConstruction';
+  structName: string;
+  fields: StructFieldInit[];
+  range: SourceRange;
+}
+
+export interface CastExpression {
+  kind: 'CastExpression';
+  expression: Expression;
+  targetType: TypeNode;
+  range: SourceRange;
+}
+
+export interface ArrowFunction {
+  kind: 'ArrowFunction';
+  params: Parameter[];
+  body: Expression;
+  range: SourceRange;
+}
+
+export interface AssignmentExpression {
+  kind: 'AssignmentExpression';
+  operator: string;
+  target: Expression;
+  value: Expression;
+  range: SourceRange;
+}
+
+// Statements
+export type Statement =
+  | ConstStatement
+  | ReturnStatement
+  | IfStatement
+  | ForStatement
+  | AssertStatement
+  | ExpressionStatement
+  | BlockStatement
+  | ErrorStatement;
+
+export interface ConstStatement {
+  kind: 'ConstStatement';
+  name: string;
+  typeAnnotation: TypeNode | undefined;
+  initializer: Expression;
+  range: SourceRange;
+}
+
+export interface ReturnStatement {
+  kind: 'ReturnStatement';
+  value: Expression | undefined;
+  range: SourceRange;
+}
+
+export interface IfStatement {
+  kind: 'IfStatement';
+  condition: Expression;
+  consequent: Statement[];
+  alternate: Statement[] | undefined;
+  range: SourceRange;
+}
+
+export interface ForStatement {
+  kind: 'ForStatement';
+  variable: string;
+  iterable: Expression;
+  body: Statement[];
+  range: SourceRange;
+}
+
+export interface AssertStatement {
+  kind: 'AssertStatement';
+  condition: Expression;
+  range: SourceRange;
+}
+
+export interface ExpressionStatement {
+  kind: 'ExpressionStatement';
+  expression: Expression;
+  range: SourceRange;
+}
+
+export interface BlockStatement {
+  kind: 'BlockStatement';
+  statements: Statement[];
+  range: SourceRange;
+}
+
+export interface ErrorStatement {
+  kind: 'ErrorStatement';
   message: string;
   range: SourceRange;
 }

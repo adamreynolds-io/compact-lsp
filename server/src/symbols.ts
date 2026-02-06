@@ -14,6 +14,8 @@ import {
   SourceRange,
   Parameter,
   TypeNode,
+  Statement,
+  Expression,
 } from './ast';
 
 export type SymbolKind =
@@ -43,6 +45,17 @@ export interface Scope {
   parent: Scope | undefined;
   children: Scope[];
   symbols: Map<string, SymbolInfo>;
+}
+
+export interface Reference {
+  name: string;
+  range: SourceRange;
+  scope: Scope;
+}
+
+export interface SymbolTableResult {
+  fileScope: Scope;
+  references: Reference[];
 }
 
 const BUILTIN_TYPES = ['Field', 'Boolean', 'Uint', 'Bytes', 'Vector', 'Opaque', 'Void'];
@@ -84,15 +97,16 @@ export function createRootScope(): Scope {
   return root;
 }
 
-export function buildSymbolTable(sourceFile: SourceFile): Scope {
+export function buildSymbolTable(sourceFile: SourceFile): SymbolTableResult {
   const root = createRootScope();
   const fileScope = createChildScope('<file>', root);
+  const references: Reference[] = [];
 
   for (const decl of sourceFile.declarations) {
-    registerDeclaration(decl, fileScope);
+    registerDeclaration(decl, fileScope, references);
   }
 
-  return fileScope;
+  return { fileScope, references };
 }
 
 function createChildScope(name: string, parent: Scope): Scope {
@@ -106,10 +120,10 @@ function createChildScope(name: string, parent: Scope): Scope {
   return child;
 }
 
-function registerDeclaration(decl: Declaration, scope: Scope): void {
+function registerDeclaration(decl: Declaration, scope: Scope, references: Reference[]): void {
   switch (decl.kind) {
     case 'CircuitDefinition':
-      registerCircuit(decl, scope);
+      registerCircuit(decl, scope, references);
       break;
     case 'ExternalCircuit':
       registerExternalCircuit(decl, scope);
@@ -127,10 +141,10 @@ function registerDeclaration(decl: Declaration, scope: Scope): void {
       registerEnum(decl, scope);
       break;
     case 'ModuleDefinition':
-      registerModule(decl, scope);
+      registerModule(decl, scope, references);
       break;
     case 'ConstructorDeclaration':
-      registerConstructor(decl, scope);
+      registerConstructor(decl, scope, references);
       break;
     case 'ConstDeclaration':
       registerConst(decl, scope);
@@ -146,7 +160,7 @@ function registerDeclaration(decl: Declaration, scope: Scope): void {
   }
 }
 
-function registerCircuit(decl: CircuitDefinition, scope: Scope): void {
+function registerCircuit(decl: CircuitDefinition, scope: Scope, references: Reference[]): void {
   scope.symbols.set(decl.name, {
     name: decl.name,
     kind: 'circuit',
@@ -166,6 +180,9 @@ function registerCircuit(decl: CircuitDefinition, scope: Scope): void {
       scope: circuitScope,
     });
   }
+
+  // Walk the body statements
+  walkStatements(decl.body, circuitScope, references);
 }
 
 function registerExternalCircuit(decl: ExternalCircuit, scope: Scope): void {
@@ -218,7 +235,7 @@ function registerEnum(decl: EnumDefinition, scope: Scope): void {
   });
 }
 
-function registerModule(decl: ModuleDefinition, scope: Scope): void {
+function registerModule(decl: ModuleDefinition, scope: Scope, references: Reference[]): void {
   scope.symbols.set(decl.name, {
     name: decl.name,
     kind: 'module',
@@ -229,11 +246,15 @@ function registerModule(decl: ModuleDefinition, scope: Scope): void {
 
   const moduleScope = createChildScope(decl.name, scope);
   for (const nested of decl.declarations) {
-    registerDeclaration(nested, moduleScope);
+    registerDeclaration(nested, moduleScope, references);
   }
 }
 
-function registerConstructor(decl: ConstructorDeclaration, scope: Scope): void {
+function registerConstructor(
+  decl: ConstructorDeclaration,
+  scope: Scope,
+  references: Reference[],
+): void {
   const ctorScope = createChildScope('<constructor>', scope);
   for (const param of decl.params) {
     ctorScope.symbols.set(param.name, {
@@ -244,6 +265,9 @@ function registerConstructor(decl: ConstructorDeclaration, scope: Scope): void {
       scope: ctorScope,
     });
   }
+
+  // Walk the body statements
+  walkStatements(decl.body, ctorScope, references);
 }
 
 function registerConst(decl: ConstDeclaration, scope: Scope): void {
@@ -268,6 +292,160 @@ function registerContract(decl: ContractDeclaration, scope: Scope): void {
   const contractScope = createChildScope(decl.name, scope);
   for (const circuit of decl.circuits) {
     registerExternalCircuit(circuit, contractScope);
+  }
+}
+
+function walkStatements(stmts: Statement[], scope: Scope, references: Reference[]): void {
+  for (const stmt of stmts) {
+    walkStatement(stmt, scope, references);
+  }
+}
+
+function walkStatement(stmt: Statement, scope: Scope, references: Reference[]): void {
+  switch (stmt.kind) {
+    case 'ConstStatement': {
+      // Walk the initializer first (variable not yet in scope)
+      walkExpression(stmt.initializer, scope, references);
+      // Register the variable in the current scope
+      scope.symbols.set(stmt.name, {
+        name: stmt.name,
+        kind: 'const',
+        declaration: undefined,
+        range: stmt.range,
+        scope,
+      });
+      break;
+    }
+    case 'ReturnStatement': {
+      if (stmt.value) {
+        walkExpression(stmt.value, scope, references);
+      }
+      break;
+    }
+    case 'IfStatement': {
+      walkExpression(stmt.condition, scope, references);
+      walkStatements(stmt.consequent, scope, references);
+      if (stmt.alternate) {
+        walkStatements(stmt.alternate, scope, references);
+      }
+      break;
+    }
+    case 'ForStatement': {
+      walkExpression(stmt.iterable, scope, references);
+      // Create a child scope for the for-loop with the iteration variable
+      const forScope = createChildScope('<for>', scope);
+      forScope.symbols.set(stmt.variable, {
+        name: stmt.variable,
+        kind: 'parameter',
+        declaration: undefined,
+        range: stmt.range,
+        scope: forScope,
+      });
+      walkStatements(stmt.body, forScope, references);
+      break;
+    }
+    case 'AssertStatement': {
+      walkExpression(stmt.condition, scope, references);
+      break;
+    }
+    case 'ExpressionStatement': {
+      walkExpression(stmt.expression, scope, references);
+      break;
+    }
+    case 'BlockStatement': {
+      const blockScope = createChildScope('<block>', scope);
+      walkStatements(stmt.statements, blockScope, references);
+      break;
+    }
+    case 'ErrorStatement': {
+      // Nothing to walk
+      break;
+    }
+  }
+}
+
+function walkExpression(expr: Expression, scope: Scope, references: Reference[]): void {
+  switch (expr.kind) {
+    case 'IdentifierExpression': {
+      references.push({
+        name: expr.name,
+        range: expr.range,
+        scope,
+      });
+      break;
+    }
+    case 'BinaryExpression': {
+      walkExpression(expr.left, scope, references);
+      walkExpression(expr.right, scope, references);
+      break;
+    }
+    case 'UnaryExpression': {
+      walkExpression(expr.operand, scope, references);
+      break;
+    }
+    case 'CallExpression': {
+      walkExpression(expr.callee, scope, references);
+      for (const arg of expr.args) {
+        walkExpression(arg, scope, references);
+      }
+      break;
+    }
+    case 'MemberExpression': {
+      // Walk object but NOT property — it's a field name, not a reference
+      walkExpression(expr.object, scope, references);
+      break;
+    }
+    case 'IndexExpression': {
+      walkExpression(expr.object, scope, references);
+      walkExpression(expr.index, scope, references);
+      break;
+    }
+    case 'ConditionalExpression': {
+      walkExpression(expr.condition, scope, references);
+      walkExpression(expr.consequent, scope, references);
+      walkExpression(expr.alternate, scope, references);
+      break;
+    }
+    case 'AssignmentExpression': {
+      walkExpression(expr.target, scope, references);
+      walkExpression(expr.value, scope, references);
+      break;
+    }
+    case 'CastExpression': {
+      walkExpression(expr.expression, scope, references);
+      break;
+    }
+    case 'ArrowFunction': {
+      // Create a child scope for the arrow function with params
+      const arrowScope = createChildScope('<arrow>', scope);
+      for (const param of expr.params) {
+        arrowScope.symbols.set(param.name, {
+          name: param.name,
+          kind: 'parameter',
+          declaration: param,
+          range: param.range,
+          scope: arrowScope,
+        });
+      }
+      walkExpression(expr.body, arrowScope, references);
+      break;
+    }
+    case 'TupleLiteral': {
+      for (const element of expr.elements) {
+        walkExpression(element, scope, references);
+      }
+      break;
+    }
+    case 'StructConstruction': {
+      for (const field of expr.fields) {
+        walkExpression(field.value, scope, references);
+      }
+      break;
+    }
+    case 'LiteralExpression': {
+      // Nothing to do
+      break;
+    }
   }
 }
 
@@ -328,9 +506,7 @@ function formatParams(params: Parameter[]): string {
     .join(', ');
 }
 
-function formatCircuitSignature(
-  decl: CircuitDefinition | ExternalCircuit,
-): string {
+function formatCircuitSignature(decl: CircuitDefinition | ExternalCircuit): string {
   const parts: string[] = [];
   if (decl.isExport) parts.push('export');
   if (decl.isPure) parts.push('pure');

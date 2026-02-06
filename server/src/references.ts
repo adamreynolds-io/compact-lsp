@@ -1,51 +1,52 @@
 import { Token, TokenKind, tokenize } from './lexer';
-import { SourceFile, Declaration, SourceRange } from './ast';
-import { Scope, resolveSymbol, formatSignature } from './symbols';
-import { ParseResult } from './ast';
+import { SourceFile, Declaration, SourceRange, ParseResult } from './ast';
+import { Scope, resolveSymbol, Reference } from './symbols';
 
-export interface HoverResult {
-  contents: string;
-  range: SourceRange;
-}
-
-export function getHoverInfo(
+export function findReferences(
   parseResult: ParseResult,
   fileScope: Scope,
+  references: Reference[],
   line: number,
   column: number,
   source: string,
-): HoverResult | undefined {
+  includeDeclaration: boolean,
+): SourceRange[] {
   // Find the token at position
   const tokens = tokenize(source);
   const token = findTokenAtPosition(tokens, line, column);
-  if (!token) return undefined;
+  if (!token) return [];
 
-  // Only hover on identifiers and type keywords
+  // Only handle identifiers and type keywords
   if (token.kind !== TokenKind.Identifier && token.kind !== TokenKind.TypeKeyword) {
-    return undefined;
+    return [];
   }
 
-  // Try to find the symbol this identifier refers to
-  // First, determine the scope for this position
+  // Determine the scope for this position
   const scope = findScopeForPosition(fileScope, line, column, parseResult.sourceFile);
 
+  // Resolve the symbol under cursor to its declaration
   const symbol = resolveSymbol(token.text, scope);
-  if (!symbol) return undefined;
+  if (!symbol) return [];
 
-  const signature = formatSignature(symbol);
-  const tokenRange: SourceRange = {
-    start: token.pos,
-    end: {
-      line: token.pos.line,
-      column: token.pos.column + token.text.length,
-      offset: token.pos.offset + token.text.length,
-    },
-  };
+  const result: SourceRange[] = [];
 
-  return {
-    contents: signature,
-    range: tokenRange,
-  };
+  // Optionally include the declaration itself
+  if (includeDeclaration && symbol.declaration !== undefined) {
+    result.push(symbol.range);
+  }
+
+  // Scan references: for each reference, resolve it in its scope and check
+  // if it resolves to the same declaration (same SymbolInfo object)
+  for (const ref of references) {
+    if (ref.name !== symbol.name) continue;
+
+    const resolved = resolveSymbol(ref.name, ref.scope);
+    if (resolved === symbol) {
+      result.push(ref.range);
+    }
+  }
+
+  return result;
 }
 
 function findTokenAtPosition(tokens: Token[], line: number, column: number): Token | undefined {

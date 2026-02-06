@@ -1,50 +1,43 @@
 import { Token, TokenKind, tokenize } from './lexer';
-import { SourceFile, Declaration, SourceRange } from './ast';
-import { Scope, resolveSymbol, formatSignature } from './symbols';
-import { ParseResult } from './ast';
+import { SourceFile, Declaration, SourceRange, ParseResult } from './ast';
+import { Scope, resolveSymbol } from './symbols';
 
-export interface HoverResult {
-  contents: string;
+export interface DefinitionResult {
   range: SourceRange;
 }
 
-export function getHoverInfo(
+export function getDefinition(
   parseResult: ParseResult,
   fileScope: Scope,
   line: number,
   column: number,
   source: string,
-): HoverResult | undefined {
+): DefinitionResult | undefined {
   // Find the token at position
   const tokens = tokenize(source);
   const token = findTokenAtPosition(tokens, line, column);
   if (!token) return undefined;
 
-  // Only hover on identifiers and type keywords
+  // Only handle identifiers and type keywords
   if (token.kind !== TokenKind.Identifier && token.kind !== TokenKind.TypeKeyword) {
     return undefined;
   }
 
-  // Try to find the symbol this identifier refers to
-  // First, determine the scope for this position
+  // Determine the scope for this position
   const scope = findScopeForPosition(fileScope, line, column, parseResult.sourceFile);
 
+  // Resolve the symbol
   const symbol = resolveSymbol(token.text, scope);
   if (!symbol) return undefined;
 
-  const signature = formatSignature(symbol);
-  const tokenRange: SourceRange = {
-    start: token.pos,
-    end: {
-      line: token.pos.line,
-      column: token.pos.column + token.text.length,
-      offset: token.pos.offset + token.text.length,
-    },
-  };
+  // Built-in types/functions have no source declaration
+  if (symbol.declaration === undefined) {
+    return undefined;
+  }
 
+  // Return the declaration's source range
   return {
-    contents: signature,
-    range: tokenRange,
+    range: symbol.range,
   };
 }
 

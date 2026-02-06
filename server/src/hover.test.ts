@@ -5,8 +5,8 @@ import { getHoverInfo } from './hover';
 
 function hover(source: string, line: number, column: number) {
   const result = parse(source);
-  const scope = buildSymbolTable(result.sourceFile);
-  return getHoverInfo(result, scope, line, column, source);
+  const { fileScope } = buildSymbolTable(result.sourceFile);
+  return getHoverInfo(result, fileScope, line, column, source);
 }
 
 describe('Hover Provider', () => {
@@ -22,9 +22,7 @@ describe('Hover Provider', () => {
       const source = 'export pure circuit divide(a: Field, b: Field) : Field { }';
       const result = hover(source, 0, 20); // on 'divide'
       expect(result).toBeDefined();
-      expect(result!.contents).toBe(
-        'export pure circuit divide(a: Field, b: Field) : Field',
-      );
+      expect(result!.contents).toBe('export pure circuit divide(a: Field, b: Field) : Field');
     });
   });
 
