@@ -8,6 +8,7 @@ import { WorkspaceIndex } from './workspaceIndex';
 export interface HoverResult {
   contents: string;
   range: SourceRange;
+  documentation?: string;
 }
 
 export function getHoverInfo(
@@ -52,6 +53,7 @@ export function getHoverInfo(
         return {
           contents: formatSignature(targetSym),
           range: tokenRange,
+          documentation: targetSym.documentation,
         };
       }
     }
@@ -67,5 +69,6 @@ export function getHoverInfo(
   return {
     contents: signature,
     range: tokenRange,
+    documentation: symbol.documentation,
   };
 }

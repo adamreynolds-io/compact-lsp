@@ -7,6 +7,7 @@ export interface CompletionItem {
   label: string;
   kind: SymbolKind;
   detail: string;
+  documentation?: string;
 }
 
 export function getCompletions(
@@ -47,6 +48,7 @@ export function getCompletions(
           label: name,
           kind: symbol.kind,
           detail,
+          documentation: symbol.documentation,
         });
       }
     }

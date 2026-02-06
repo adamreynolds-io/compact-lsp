@@ -159,6 +159,29 @@ describe('Hover Provider', () => {
       expect(result!.contents).toContain('x: Field');
     });
 
+    it('hover on built-in type includes documentation', () => {
+      const source = 'circuit foo(x: Field) : Field { return x; }';
+      const result = hover(source, 0, 15); // on 'Field' in parameter type
+      expect(result).toBeDefined();
+      expect(result!.documentation).toBeDefined();
+      expect(result!.documentation).toContain('finite field');
+    });
+
+    it('hover on built-in function includes documentation', () => {
+      const source = 'circuit foo() : Void { map; }';
+      const result = hover(source, 0, 23); // on 'map'
+      expect(result).toBeDefined();
+      expect(result!.documentation).toBeDefined();
+      expect(result!.documentation).toContain('Applies a function');
+    });
+
+    it('hover on user-defined symbol has no documentation', () => {
+      const source = 'circuit add(x: Field) : Field { return x; }';
+      const result = hover(source, 0, 8); // on 'add'
+      expect(result).toBeDefined();
+      expect(result!.documentation).toBeUndefined();
+    });
+
     it('hover on unresolvable import shows import-only info', () => {
       const index = new WorkspaceIndex();
       const mainUri = makeUri('main.compact');

@@ -77,6 +77,25 @@ circuit main() : Field { return outer(inner()); }`;
     });
   });
 
+  describe('documentation', () => {
+    it('built-in function call includes documentation', () => {
+      const source = 'circuit main() : Void { map(); }';
+      // cursor inside map() — col 28 (after open paren)
+      const result = sigHelp(source, 0, 28);
+      expect(result).toBeDefined();
+      expect(result!.documentation).toBeDefined();
+      expect(result!.documentation).toContain('Applies a function');
+    });
+
+    it('user-defined circuit call has no documentation', () => {
+      const source =
+        'circuit add(x: Field, y: Field) : Field { return x; }\ncircuit main() : Field { return add(); }';
+      const result = sigHelp(source, 1, 36);
+      expect(result).toBeDefined();
+      expect(result!.documentation).toBeUndefined();
+    });
+  });
+
   describe('edge cases', () => {
     it('returns undefined when cursor is outside any call', () => {
       const source = 'circuit main() : Field { return 42; }';

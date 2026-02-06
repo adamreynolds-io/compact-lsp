@@ -194,6 +194,34 @@ describe('Completion Provider', () => {
     });
   });
 
+  describe('documentation on completion items', () => {
+    it('built-in type has documentation', () => {
+      const source = '';
+      const result = completions(source, 0, 0);
+      const fieldItem = result.find((c) => c.label === 'Field');
+      expect(fieldItem).toBeDefined();
+      expect(fieldItem!.documentation).toBeDefined();
+      expect(fieldItem!.documentation).toContain('finite field');
+    });
+
+    it('built-in function has documentation', () => {
+      const source = '';
+      const result = completions(source, 0, 0);
+      const mapItem = result.find((c) => c.label === 'map');
+      expect(mapItem).toBeDefined();
+      expect(mapItem!.documentation).toBeDefined();
+      expect(mapItem!.documentation).toContain('Applies a function');
+    });
+
+    it('user-defined symbol has no documentation', () => {
+      const source = 'circuit foo(x: Field) : Field { return x; }\n';
+      const result = completions(source, 1, 0);
+      const fooItem = result.find((c) => c.label === 'foo');
+      expect(fooItem).toBeDefined();
+      expect(fooItem!.documentation).toBeUndefined();
+    });
+  });
+
   describe('cross-file completion', () => {
     function makeUri(name: string): string {
       return fsPathToUri(`/project/src/${name}`);

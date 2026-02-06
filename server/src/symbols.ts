@@ -19,6 +19,7 @@ import {
   Statement,
   Expression,
 } from './ast';
+import { BUILTIN_DOCS } from './builtinDocs';
 
 export type SymbolKind =
   | 'circuit'
@@ -42,6 +43,7 @@ export interface SymbolInfo {
   scope: Scope;
   resolvedUri?: string;
   resolvedName?: string;
+  documentation?: string;
 }
 
 export interface Scope {
@@ -118,6 +120,7 @@ export function createRootScope(): Scope {
       declaration: undefined,
       range: dummyRange,
       scope: root,
+      documentation: BUILTIN_DOCS[name],
     });
   }
 
@@ -128,6 +131,7 @@ export function createRootScope(): Scope {
       declaration: undefined,
       range: dummyRange,
       scope: root,
+      documentation: BUILTIN_DOCS[name],
     });
   }
 
@@ -138,6 +142,7 @@ export function createRootScope(): Scope {
       declaration: undefined,
       range: dummyRange,
       scope: root,
+      documentation: BUILTIN_DOCS[name],
     });
   }
 

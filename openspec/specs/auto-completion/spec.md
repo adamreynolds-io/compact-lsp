@@ -28,7 +28,7 @@ The auto-completion provider SHALL respond to `textDocument/completion` requests
 - **THEN** the completion list includes `bar` (from module scope) and `counter` (from file scope)
 
 ### Requirement: Completion items include kind and detail
-Each completion item SHALL include an appropriate `CompletionItemKind` and a `detail` string showing the symbol's signature.
+Each completion item SHALL include an appropriate `CompletionItemKind`, a `detail` string showing the symbol's signature, and when available, a `documentation` field with the symbol's description.
 
 #### Scenario: Circuit completion item
 - **WHEN** `circuit add(x: Field, y: Field) : Field` is in scope
@@ -49,6 +49,18 @@ Each completion item SHALL include an appropriate `CompletionItemKind` and a `de
 #### Scenario: Parameter completion item
 - **WHEN** parameter `x: Field` is in scope
 - **THEN** the completion item has kind `Variable` and detail `(parameter) x: Field`
+
+#### Scenario: Built-in type completion item with documentation
+- **WHEN** `Field` is a built-in type with documentation
+- **THEN** the completion item includes the documentation text
+
+#### Scenario: Built-in function completion item with documentation
+- **WHEN** `map` is a built-in function with documentation
+- **THEN** the completion item includes the documentation text
+
+#### Scenario: User-defined symbol without documentation
+- **WHEN** a user-defined circuit is in scope with no documentation
+- **THEN** the completion item has no documentation field
 
 ### Requirement: Completion returns empty list outside identifier contexts
 The completion provider SHALL return an empty list when the cursor position is not suitable for identifier completion.

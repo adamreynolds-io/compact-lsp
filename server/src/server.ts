@@ -307,10 +307,15 @@ connection.onHover((params): Hover | undefined => {
 
   if (!result) return undefined;
 
+  let value = '```compact\n' + result.contents + '\n```';
+  if (result.documentation) {
+    value += '\n\n' + result.documentation;
+  }
+
   return {
     contents: {
       kind: MarkupKind.Markdown,
-      value: '```compact\n' + result.contents + '\n```',
+      value,
     },
     range: {
       start: { line: result.range.start.line, character: result.range.start.column },
@@ -400,6 +405,9 @@ connection.onCompletion((params): LspCompletionItem[] => {
     label: item.label,
     kind: symbolKindToCompletionKind[item.kind] ?? CompletionItemKind.Text,
     detail: item.detail,
+    ...(item.documentation && {
+      documentation: { kind: MarkupKind.Markdown, value: item.documentation },
+    }),
   }));
 });
 
@@ -517,6 +525,9 @@ connection.onSignatureHelp((params): SignatureHelp | undefined => {
   const sigInfo: SignatureInformation = {
     label: result.label,
     parameters: result.parameters.map((p): ParameterInformation => ({ label: p.label })),
+    ...(result.documentation && {
+      documentation: { kind: MarkupKind.Markdown, value: result.documentation },
+    }),
   };
 
   return {

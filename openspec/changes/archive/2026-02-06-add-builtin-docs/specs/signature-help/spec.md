@@ -1,4 +1,4 @@
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Signature help shows parameter info for circuit calls
 The signature help provider SHALL respond to `textDocument/signatureHelp` requests by returning the signature, active parameter index, and when available, function-level documentation when the cursor is inside the argument list of a call to a circuit, witness, or built-in function.
@@ -30,29 +30,3 @@ The signature help provider SHALL respond to `textDocument/signatureHelp` reques
 #### Scenario: User-defined circuit call without documentation
 - **WHEN** the document contains `foo(|)` and `foo` is a user-defined circuit with no documentation
 - **THEN** signature help returns the signature without documentation
-
-### Requirement: Signature help triggers on open paren and comma
-The server SHALL register `(` and `,` as signature help trigger characters.
-
-#### Scenario: Typing open paren triggers signature help
-- **WHEN** the user types `(` after a circuit name
-- **THEN** the editor requests signature help and receives parameter info
-
-#### Scenario: Typing comma advances active parameter
-- **WHEN** the user types `,` inside a call argument list
-- **THEN** the editor requests signature help and receives the updated active parameter index
-
-### Requirement: Signature help returns nothing for non-call positions
-The signature help provider SHALL return no result when the cursor is not inside a call expression's argument list.
-
-#### Scenario: Cursor outside any call
-- **WHEN** the cursor is on a standalone identifier like `x` not inside a call
-- **THEN** signature help returns no result
-
-#### Scenario: Cursor on a call to an unresolved name
-- **WHEN** the cursor is inside `unknown(|)` where `unknown` does not resolve to any symbol
-- **THEN** signature help returns no result
-
-#### Scenario: Callee has no parameters
-- **WHEN** `noArgs` is declared as `circuit noArgs() : Field` and cursor is at `noArgs(|)`
-- **THEN** signature help returns the signature with an empty parameter list

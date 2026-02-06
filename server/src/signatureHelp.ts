@@ -7,6 +7,7 @@ export interface SignatureHelpResult {
   label: string;
   parameters: { label: string }[];
   activeParameter: number;
+  documentation?: string;
 }
 
 export function getSignatureHelp(
@@ -43,6 +44,7 @@ export function getSignatureHelp(
     label,
     parameters: paramStrings.map((s) => ({ label: s })),
     activeParameter: Math.min(callInfo.activeParam, Math.max(params.length - 1, 0)),
+    documentation: symbol.documentation,
   };
 }
 

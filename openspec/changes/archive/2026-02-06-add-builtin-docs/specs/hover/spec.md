@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: Hover returns declaration signature for symbols
 The hover provider SHALL respond to `textDocument/hover` requests by looking up the symbol at the cursor position in the symbol table and returning a formatted signature. When the symbol has documentation, the provider SHALL append the documentation text below the signature.
@@ -50,18 +50,3 @@ The hover provider SHALL respond to `textDocument/hover` requests by looking up 
 #### Scenario: Hover over symbol without documentation
 - **WHEN** the cursor is on a user-defined symbol with no documentation
 - **THEN** hover returns only the signature, with no documentation text appended
-
-### Requirement: Hover returns nothing for non-symbol positions
-The hover provider SHALL return no result when the cursor is not on an identifier that resolves to a known symbol.
-
-#### Scenario: Hover over keyword
-- **WHEN** the cursor is on the keyword `circuit`
-- **THEN** hover returns no result
-
-#### Scenario: Hover over whitespace
-- **WHEN** the cursor is on whitespace
-- **THEN** hover returns no result
-
-#### Scenario: Hover over unresolved identifier
-- **WHEN** the cursor is on an identifier that does not resolve to any declaration
-- **THEN** hover returns no result
