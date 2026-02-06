@@ -4,7 +4,7 @@ A Language Server Protocol (LSP) implementation for the [Compact](https://github
 
 ## Features
 
-- **Diagnostics** — Parse errors, undefined references, import errors, and lint warnings (unused imports/variables/parameters, unreachable code)
+- **Diagnostics** — Parse errors, undefined references, import errors, lint warnings (unused imports/variables/parameters, unreachable code), and version diagnostics
 - **Hover** — Type information, signatures, and built-in documentation on hover
 - **Go to Definition** — Jump to symbol declarations, including cross-file imports
 - **Find References** — Find all usages of a symbol across the workspace
@@ -16,6 +16,7 @@ A Language Server Protocol (LSP) implementation for the [Compact](https://github
 - **Code Actions** — Quick fixes (add import, did-you-mean, remove unused import) and refactoring (extract to const)
 - **Folding Ranges** — Code folding for modules, circuits, structs, enums, control flow, and import groups
 - **Multi-file Analysis** — Workspace-wide indexing with cross-file navigation and import diagnostics
+- **Version-Aware Parsing** — Pragma-based version gating of built-in types, functions, and ADT types
 
 ## Installation
 
@@ -48,7 +49,7 @@ npm install
 # Build all workspaces
 npm run build
 
-# Run tests (416 tests across 21 test files)
+# Run tests (471 tests across 23 test files)
 npm test
 
 # Run tests in watch mode
@@ -88,7 +89,9 @@ compact-lsp/
 │   │   ├── workspaceIndex.ts   # Workspace-wide file indexing
 │   │   ├── moduleResolution.ts # Import path resolution
 │   │   ├── importDiagnostics.ts # Import error diagnostics
-│   │   └── lintDiagnostics.ts  # Lint warnings (unused symbols, unreachable code)
+│   │   ├── lintDiagnostics.ts  # Lint warnings (unused symbols, unreachable code)
+│   │   ├── versionRegistry.ts  # Language version definitions and resolution
+│   │   └── versionDiagnostics.ts # Version-related diagnostics
 │   └── tsconfig.json
 ├── extension/              # VS Code extension client
 │   ├── src/

@@ -1,5 +1,7 @@
 # Research: compact-lsp
 
+> **Note:** This document is a historical research artifact from the initial POC phase. The project has since evolved significantly — the hand-written lexer/parser replaced the planned compiler integration, and all LSP features listed under "Future iterations" have been implemented. See README.md and CLAUDE.md for current project state.
+
 ## Project Overview
 
 **Name:** compact-lsp

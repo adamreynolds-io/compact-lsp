@@ -47,9 +47,21 @@ The lexer SHALL tokenize Compact source text into a stream of tokens, each with 
 - **WHEN** the source contains `{`, `}`, `(`, `)`, `[`, `]`, `<`, `>`, `:`, `;`, `,`, `.`, `=`, `+`, `-`, `*`, `!`, `?`, `=>`, `..`, `...`, `==`, `!=`, `<=`, `>=`, `&&`, `||`, `+=`, `-=`, `#`
 - **THEN** each is tokenized as its respective punctuation/operator token kind
 
-#### Scenario: Comments are skipped
+#### Scenario: Line comments are skipped
 - **WHEN** the source contains `// this is a comment`
-- **THEN** the comment is consumed but not emitted as a token (or emitted as a trivia token)
+- **THEN** the comment is consumed but not emitted as a token
+
+#### Scenario: Block comments are skipped
+- **WHEN** the source contains `/* this is a comment */` or `/** JSDoc comment */`
+- **THEN** the block comment is consumed but not emitted as a token
+
+#### Scenario: Multi-line block comments are skipped
+- **WHEN** the source contains a block comment spanning multiple lines
+- **THEN** the entire comment is consumed, line/column tracking advances correctly, and no tokens are emitted for the comment
+
+#### Scenario: Unterminated block comment
+- **WHEN** the source contains `/* unterminated` with no closing `*/`
+- **THEN** the lexer consumes to EOF without crashing and produces only an EOF token
 
 #### Scenario: Whitespace is skipped
 - **WHEN** the source contains spaces, tabs, or newlines between tokens
@@ -163,6 +175,32 @@ The parser SHALL parse type annotations appearing in declarations (parameter typ
 #### Scenario: Range type argument
 - **WHEN** a type annotation is `Uint<0..4294967295>`
 - **THEN** it is parsed as a parameterized type with a range expression as the type argument
+
+#### Scenario: String literal type argument
+- **WHEN** a type annotation is `Opaque<"CoinInfo">`
+- **THEN** it is parsed as a `ParameterizedType` with a `StringArgument` node containing the string value
+
+#### Scenario: Nested string literal type argument
+- **WHEN** a type annotation is `Map<Uint<128>, Opaque<"string">>`
+- **THEN** the inner `Opaque<"string">` is parsed as a `ParameterizedType` with a `StringArgument`
+
+#### Scenario: Safety guard prevents infinite loop on unhandled tokens
+- **WHEN** `parseParameterizedType()` encounters a token it doesn't handle inside `<...>`
+- **THEN** the parser force-advances past the token to prevent infinite loops
+
+### Requirement: StringArgument AST node
+The AST SHALL include a `StringArgument` node type for string literals used as type arguments. The `TypeArgument` union SHALL include `StringArgument` alongside `TypeNode`, `NumberArgument`, and `RangeArgument`.
+
+#### Scenario: StringArgument structure
+- **WHEN** the parser encounters a `StringLiteral` token inside type argument angle brackets
+- **THEN** it produces a `StringArgument` node with `kind: 'StringArgument'`, `value` (the string token text including quotes), and `range`
+
+### Requirement: StringArgument formatting in type display
+The `formatTypeNode()` function SHALL format `StringArgument` nodes by returning the string value (including quotes).
+
+#### Scenario: Formatting Opaque with string argument
+- **WHEN** `formatTypeNode()` is called on a `ParameterizedType` with a `StringArgument`
+- **THEN** it returns the formatted string like `Opaque<"CoinInfo">`
 
 ### Requirement: Parser parses circuit and constructor bodies
 The parser SHALL parse circuit and constructor bodies (delimited by `{ }`) into full statement and expression AST nodes. On unrecoverable errors inside a body, the parser SHALL fall back to brace matching to consume the remaining body content.

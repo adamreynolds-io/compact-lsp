@@ -5,7 +5,7 @@
 compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language](https://github.com/LFDT-Minokawa/compact), a smart contract programming language, providing rich IDE features for `.compact` files in VS Code.
 
 ### Current Capabilities
-- **Diagnostics:** Parse errors, undefined references, import errors, and lint warnings (unused imports/variables/parameters, unreachable code)
+- **Diagnostics:** Parse errors, undefined references, import errors, lint warnings (unused imports/variables/parameters, unreachable code), and version diagnostics
 - **Hover:** Type information, signatures, and built-in documentation on hover
 - **Go to Definition:** Jump to symbol declarations, including cross-file imports
 - **Find References:** Find all usages of a symbol across the workspace
@@ -17,6 +17,7 @@ compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language
 - **Code Actions:** Quick fixes (add import, did-you-mean, remove unused import) and refactoring (extract to const)
 - **Folding Ranges:** Code folding for modules, circuits, structs, enums, control flow, and import groups
 - **Multi-file Analysis:** Workspace-wide indexing with cross-file navigation and import diagnostics
+- **Version-Aware Parsing:** Pragma-based version gating of built-in types, functions, and ADT types
 
 ### Future Goals
 - Standalone server mode for other editors (Neovim, Emacs, etc.)
@@ -39,7 +40,7 @@ compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language
 
 ### Architecture Patterns
 - Separate LSP server logic from VS Code extension client
-- Integrate directly with the Compact compiler for parsing and analysis
+- Hand-written lexer and Pratt parser (no external compiler dependency)
 - Keep the codebase minimal - this is a POC, avoid over-engineering
 
 ### Testing Strategy
@@ -80,18 +81,14 @@ compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language
 
 ## Important Constraints
 
-- **Integration:** Must work with the existing Compact compiler/parser
 - **Performance:** Should handle typical smart contract file sizes without noticeable lag
+- **Parser Safety:** Expression recursion depth limit (200), file size limit (1M chars), arrow function lookahead bounds (500 tokens)
 
 ## External Dependencies
 
-- **Compact Compiler:**
-  - https://github.com/LFDT-Minokawa/compact (original)
-  - https://github.com/midnightntwrk/compact (active development)
-  - Used for parsing, analysis, and diagnostics
-  - Integration approach TBD (CLI invocation, library import, or WASM)
 - **vscode-languageserver:** Microsoft's LSP implementation for Node.js
 - **vscode-languageclient:** Client library for VS Code extension
+- **Note:** The project uses a hand-written lexer and parser — there is no runtime dependency on the Compact compiler
 
 ## Research References (Not Implementation Dependencies)
 
