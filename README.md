@@ -244,4 +244,4 @@ The server communicates over stdio. Point your MCP client at the command above.
 
 ## License
 
-This project is not yet licensed. See the repository for details.
+Licensed under the [Apache License, Version 2.0](LICENSE).
