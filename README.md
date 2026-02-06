@@ -4,15 +4,18 @@ A Language Server Protocol (LSP) implementation for the [Compact](https://github
 
 ## Features
 
-- **Diagnostics** — Parse errors and undefined reference warnings as editor squiggles
-- **Hover** — Type information and signatures on hover
-- **Go to Definition** — Jump to symbol declarations
-- **Find References** — Find all usages of a symbol across the file
-- **Auto-completion** — Context-aware symbol suggestions
+- **Diagnostics** — Parse errors, undefined references, and import errors as editor squiggles
+- **Hover** — Type information, signatures, and built-in documentation on hover
+- **Go to Definition** — Jump to symbol declarations, including cross-file imports
+- **Find References** — Find all usages of a symbol across the workspace
+- **Auto-completion** — Context-aware symbol suggestions with documentation
 - **Document Symbols** — Outline view with hierarchical symbol tree
-- **Rename Symbol** — Rename a symbol and all its references
-- **Signature Help** — Parameter hints when typing function calls
+- **Rename Symbol** — Rename a symbol and all its references across files
+- **Signature Help** — Parameter hints when typing function calls, with documentation
 - **Semantic Tokens** — Rich syntax highlighting based on symbol resolution
+- **Code Actions** — Quick fixes (add import, did-you-mean) and refactoring (extract to const, remove unused import)
+- **Folding Ranges** — Code folding for modules, circuits, structs, enums, control flow, and import groups
+- **Multi-file Analysis** — Workspace-wide indexing with cross-file navigation and import diagnostics
 
 ## Installation
 
@@ -45,7 +48,7 @@ npm install
 # Build all workspaces
 npm run build
 
-# Run tests (297 tests across 13 test files)
+# Run tests (395 tests across 20 test files)
 npm test
 
 # Run tests in watch mode
@@ -78,14 +81,19 @@ compact-lsp/
 │   │   ├── documentSymbols.ts  # Document symbols provider
 │   │   ├── rename.ts       # Rename provider
 │   │   ├── signatureHelp.ts    # Signature help provider
-│   │   └── semanticTokens.ts   # Semantic tokens provider
+│   │   ├── semanticTokens.ts   # Semantic tokens provider
+│   │   ├── codeActions.ts      # Code actions (quick fixes + refactoring)
+│   │   ├── foldingRanges.ts    # Folding ranges provider
+│   │   ├── builtinDocs.ts      # Built-in documentation registry
+│   │   ├── workspaceIndex.ts   # Workspace-wide file indexing
+│   │   ├── moduleResolution.ts # Import path resolution
+│   │   └── importDiagnostics.ts # Import error diagnostics
 │   └── tsconfig.json
 ├── extension/              # VS Code extension client
 │   ├── src/
 │   │   └── extension.ts    # Extension entry point
 │   └── package.json        # Extension manifest (language contribution, activation)
-├── package.json            # Root workspace config
-└── CONTRIBUTING.md         # Architecture and development guide
+└── package.json            # Root workspace config
 ```
 
 ## Tech Stack

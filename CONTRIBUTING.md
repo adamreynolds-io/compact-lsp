@@ -14,7 +14,7 @@ Source text → Lexer → Tokens → Parser → AST → Symbol Table → LSP Pro
 4. **Symbol Table** (`symbols.ts`) walks the AST to build a scope hierarchy (root → file → module → circuit → block/for/arrow) with symbol declarations and a flat reference list
 5. **Providers** use the AST, symbol table, and token stream to answer LSP requests
 
-The server (`server.ts`) wires everything together: on each document change, it re-lexes, re-parses, rebuilds the symbol table, and pushes diagnostics. Other LSP requests (hover, definition, etc.) query the cached parse result and symbol table.
+The server (`server.ts`) wires everything together: on each document change, it re-lexes, re-parses, rebuilds the symbol table, resolves imports against the workspace index, and pushes diagnostics. Other LSP requests (hover, definition, etc.) query the cached parse result and symbol table. The workspace index eagerly parses all `.compact` files on startup and watches for changes to keep cross-file analysis up to date.
 
 ## Module Responsibilities
 
@@ -35,13 +35,19 @@ The server (`server.ts`) wires everything together: on each document change, it 
 | `rename.ts` | Rename provider with prepare-rename validation |
 | `signatureHelp.ts` | Signature help provider — parameter hints for calls |
 | `semanticTokens.ts` | Semantic tokens provider — symbol-aware syntax highlighting |
+| `codeActions.ts` | Code actions — quick fixes (add import, did-you-mean) and refactoring (extract to const, remove unused import) |
+| `foldingRanges.ts` | Folding ranges provider — code folding for declarations, control flow, and import groups |
+| `builtinDocs.ts` | Built-in documentation registry — single-sentence descriptions for all built-in types, functions, and ADTs |
+| `workspaceIndex.ts` | Workspace index — maps file URIs to parsed state for cross-file analysis |
+| `moduleResolution.ts` | Module resolution — resolves import identifiers and string paths to file URIs |
+| `importDiagnostics.ts` | Import diagnostics — module-not-found and specifier-not-exported errors |
 
 ## Development Workflow
 
 ### Running Tests
 
 ```sh
-# Full test suite (297 tests)
+# Full test suite (395 tests)
 npm test
 
 # Watch mode
