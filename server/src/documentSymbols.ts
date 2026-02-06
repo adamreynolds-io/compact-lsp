@@ -13,9 +13,9 @@ import {
   NewTypeDeclaration,
   ExportList,
   SourceRange,
-  TypeNode,
   Parameter,
 } from './ast';
+import { formatTypeNode } from './symbols';
 
 export enum DocSymbolKind {
   Function = 12,
@@ -89,23 +89,6 @@ function nameSelectionRange(decl: { name: string; range: SourceRange }): SourceR
       offset: decl.range.start.offset + decl.name.length,
     },
   };
-}
-
-function formatTypeArg(a: import('./ast').TypeArgument): string {
-  if (a.kind === 'NumberArgument') return a.value;
-  if (a.kind === 'RangeArgument') return `${a.low}..${a.high}`;
-  return formatTypeNode(a);
-}
-
-function formatTypeNode(t: TypeNode): string {
-  switch (t.kind) {
-    case 'TypeReference':
-      return t.name;
-    case 'ParameterizedType':
-      return `${t.name}<${t.args.map(formatTypeArg).join(', ')}>`;
-    case 'TupleType':
-      return `[${t.elements.map(formatTypeNode).join(', ')}]`;
-  }
 }
 
 function formatParams(params: Parameter[]): string {

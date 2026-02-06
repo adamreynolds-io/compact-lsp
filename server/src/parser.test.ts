@@ -980,4 +980,65 @@ describe('Parser', () => {
       expect(circuit.params[0].pattern!.kind).toBe('TuplePattern');
     });
   });
+
+  describe('resource limits', () => {
+    it('parses normal-depth expressions without errors', () => {
+      // Nesting depth of 10 — well within limits
+      const expr = '((((((((((x))))))))))';
+      const result = parse(`circuit f() : Field { return ${expr}; }`);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('reports error for deeply nested expressions exceeding depth limit', () => {
+      // Build nesting depth > 200 using nested parentheses
+      const depth = 210;
+      const open = '('.repeat(depth);
+      const close = ')'.repeat(depth);
+      const expr = `${open}x${close}`;
+      const result = parse(`circuit f() : Field { return ${expr}; }`);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors.some((e) => e.message.includes('too deeply nested'))).toBe(true);
+    });
+
+    it('does not crash on deeply nested expressions', () => {
+      // Use depth 250 — exceeds the 200 limit but the depth check prevents stack overflow
+      const depth = 250;
+      const open = '('.repeat(depth);
+      const close = ')'.repeat(depth);
+      const expr = `${open}x${close}`;
+      // Should not throw — depth limit catches it before stack overflow
+      const result = parse(`circuit f() : Field { return ${expr}; }`);
+      expect(result).toBeDefined();
+      expect(result.errors.some((e) => e.message.includes('too deeply nested'))).toBe(true);
+    });
+
+    it('looksLikeArrowFunction returns false when lookahead limit is exceeded', () => {
+      // Create a ( followed by many tokens without a closing ) — triggers lookahead
+      // Use identifiers separated by commas to trigger the ident-followed-by-comma path
+      const manyParams = Array(600).fill('x').join(', ');
+      const source = `circuit f() : Field { const a = (${manyParams}); }`;
+      const result = parse(source);
+      // Should not hang — the parse may produce errors but must complete
+      expect(result).toBeDefined();
+    });
+
+    it('error recovery in body does not crash on garbage tokens inside circuit', () => {
+      // Random invalid tokens inside a circuit body — exercises the statement-level
+      // catch block and body-level fallback brace matching
+      const source = 'circuit f() : Field { @@@ $$$ %%% }';
+      const result = parse(source);
+      expect(result).toBeDefined();
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
+
+    it('error recovery handles unclosed braces in circuit body', () => {
+      // Missing closing brace — the parser tolerates EOF without crashing
+      const source = 'circuit f() : Field { return x;';
+      const result = parse(source);
+      expect(result).toBeDefined();
+      // Parser may or may not produce errors for unclosed brace at EOF,
+      // but it must not crash
+      expect(result.sourceFile).toBeDefined();
+    });
+  });
 });

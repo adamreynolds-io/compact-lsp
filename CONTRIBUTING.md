@@ -41,7 +41,7 @@ The server (`server.ts`) wires everything together: on each document change, it 
 ### Running Tests
 
 ```sh
-# Full test suite (227 tests)
+# Full test suite (297 tests)
 npm test
 
 # Watch mode
@@ -82,6 +82,7 @@ Tests live alongside source files (`*.test.ts`) or in `server/src/__tests__/`. A
 Provider tests follow a **parse-and-query** pattern:
 
 ```typescript
+import { tokenize } from '../lexer';
 import { parse } from '../parser';
 import { buildSymbolTable } from '../symbols';
 import { getHoverInfo } from '../hover';
@@ -90,8 +91,9 @@ it('shows hover for circuit', () => {
   const source = `circuit add(x: Field, y: Field) : Field { return x; }`;
   const parseResult = parse(source);
   const { fileScope } = buildSymbolTable(parseResult.sourceFile);
+  const tokens = tokenize(source);
 
-  const result = getHoverInfo(parseResult, fileScope, 0, 8, source);
+  const result = getHoverInfo(parseResult, fileScope, 0, 8, tokens);
 
   expect(result).toBeDefined();
   expect(result!.contents).toContain('circuit add');

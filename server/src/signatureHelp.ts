@@ -1,6 +1,6 @@
-import { tokenize, TokenKind } from './lexer';
+import { Token, TokenKind } from './lexer';
 import { ParseResult, Parameter } from './ast';
-import { Scope, SymbolInfo, resolveSymbol } from './symbols';
+import { Scope, SymbolInfo, resolveSymbol, formatTypeNode } from './symbols';
 import { findScopeForPosition } from './utils';
 
 export interface SignatureHelpResult {
@@ -15,9 +15,10 @@ export function getSignatureHelp(
   line: number,
   column: number,
   source: string,
+  tokens: Token[],
 ): SignatureHelpResult | undefined {
   // Find the enclosing call expression by scanning tokens for matching parens
-  const callInfo = findEnclosingCall(source, line, column);
+  const callInfo = findEnclosingCall(tokens, source, line, column);
   if (!callInfo) return undefined;
 
   // Resolve the callee name to a symbol
@@ -50,9 +51,12 @@ interface CallInfo {
   activeParam: number;
 }
 
-function findEnclosingCall(source: string, line: number, column: number): CallInfo | undefined {
-  const tokens = tokenize(source);
-
+function findEnclosingCall(
+  tokens: Token[],
+  source: string,
+  line: number,
+  column: number,
+): CallInfo | undefined {
   // Convert line/column to offset
   const targetOffset = lineColumnToOffset(source, line, column);
   if (targetOffset === undefined) return undefined;
@@ -142,23 +146,6 @@ function getParametersFromSymbol(symbol: SymbolInfo): Parameter[] | undefined {
       return decl.params;
     default:
       return undefined;
-  }
-}
-
-import { TypeNode } from './ast';
-
-function formatTypeNode(t: TypeNode): string {
-  switch (t.kind) {
-    case 'TypeReference':
-      return t.name;
-    case 'ParameterizedType':
-      return `${t.name}<${t.args.map((a) => {
-        if (a.kind === 'NumberArgument') return a.value;
-        if (a.kind === 'RangeArgument') return `${a.low}..${a.high}`;
-        return formatTypeNode(a);
-      }).join(', ')}>`;
-    case 'TupleType':
-      return `[${t.elements.map(formatTypeNode).join(', ')}]`;
   }
 }
 

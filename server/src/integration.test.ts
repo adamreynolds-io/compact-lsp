@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { tokenize } from './lexer';
 import { parse } from './parser';
 import { buildSymbolTable } from './symbols';
 import { getHoverInfo } from './hover';
@@ -65,7 +66,7 @@ contract MyContract {
       const result = parse(source);
       const { fileScope: scope } = buildSymbolTable(result.sourceFile);
       // 'increment' is on line 8, col 15
-      const hoverResult = getHoverInfo(result, scope, 8, 15, source);
+      const hoverResult = getHoverInfo(result, scope, 8, 15, tokenize(source));
       expect(hoverResult).toBeDefined();
       expect(hoverResult!.contents).toContain('circuit increment');
       expect(hoverResult!.contents).toContain('amount: Field');
@@ -75,7 +76,7 @@ contract MyContract {
       const result = parse(source);
       const { fileScope: scope } = buildSymbolTable(result.sourceFile);
       // 'counter' is on line 4, col 22
-      const hoverResult = getHoverInfo(result, scope, 4, 22, source);
+      const hoverResult = getHoverInfo(result, scope, 4, 22, tokenize(source));
       expect(hoverResult).toBeDefined();
       expect(hoverResult!.contents).toContain('ledger counter');
     });
@@ -122,7 +123,7 @@ contract MyContract {
       expect(diagnostics.length).toBeGreaterThan(0);
 
       // Hover should still work on the valid circuit
-      const hoverResult = getHoverInfo(result, scope, 0, 8, source);
+      const hoverResult = getHoverInfo(result, scope, 0, 8, tokenize(source));
       expect(hoverResult).toBeDefined();
       expect(hoverResult!.contents).toContain('circuit foo');
     });
@@ -141,7 +142,7 @@ contract MyContract {
 
       const { fileScope, references } = buildSymbolTable(result.sourceFile);
       // 'bar' on line 2 at column 9
-      const defResult = getDefinition(result, fileScope, references, 2, 9, source);
+      const defResult = getDefinition(result, fileScope, references, 2, 9, tokenize(source));
       expect(defResult).toBeDefined();
       expect(defResult!.range.start.line).toBe(0);
       expect(defResult!.range.start.column).toBe(0);
@@ -161,7 +162,7 @@ contract MyContract {
 
       const { fileScope, references } = buildSymbolTable(result.sourceFile);
       // 'x' parameter at line 0, column 12
-      const refs = findReferences(result, fileScope, references, 0, 12, source, true);
+      const refs = findReferences(result, fileScope, references, 0, 12, tokenize(source), true);
       // declaration + usage in 'x + y'
       expect(refs.length).toBe(2);
     });
@@ -248,9 +249,7 @@ circuit process(x: Field) : Field {
       const realErrors = diagnostics.filter((d) => d.severity === 'error');
       for (const d of realErrors) {
         // Only 'pair' and 'point' should be truly undefined
-        expect(
-          d.message.includes("'pair'") || d.message.includes("'point'"),
-        ).toBe(true);
+        expect(d.message.includes("'pair'") || d.message.includes("'point'")).toBe(true);
       }
     });
 
@@ -258,7 +257,7 @@ circuit process(x: Field) : Field {
       const result = parse(newSyntaxSource);
       const { fileScope } = buildSymbolTable(result.sourceFile);
       // 'MyBool' is on line 4, find exact col
-      const hoverResult = getHoverInfo(result, fileScope, 4, 9, newSyntaxSource);
+      const hoverResult = getHoverInfo(result, fileScope, 4, 9, tokenize(newSyntaxSource));
       expect(hoverResult).toBeDefined();
       expect(hoverResult!.contents).toContain('MyBool');
     });

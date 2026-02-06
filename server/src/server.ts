@@ -22,6 +22,7 @@ import {
   SemanticTokensRequest,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { Token, tokenize } from './lexer';
 import { parse } from './parser';
 import { buildSymbolTable, Scope, Reference, SymbolKind } from './symbols';
 import { getHoverInfo } from './hover';
@@ -46,7 +47,13 @@ const documents = new TextDocuments(TextDocument);
 // Per-document state
 const documentState = new Map<
   string,
-  { parseResult: ParseResult; fileScope: Scope; references: Reference[]; source: string }
+  {
+    parseResult: ParseResult;
+    fileScope: Scope;
+    references: Reference[];
+    source: string;
+    tokens: Token[];
+  }
 >();
 
 connection.onInitialize((_params: InitializeParams): InitializeResult => {
@@ -77,10 +84,32 @@ connection.onInitialize((_params: InitializeParams): InitializeResult => {
   };
 });
 
+const MAX_FILE_SIZE = 1_000_000;
+
 function analyzeDocument(uri: string, text: string): void {
+  if (text.length >= MAX_FILE_SIZE) {
+    documentState.delete(uri);
+    connection.sendDiagnostics({
+      uri,
+      diagnostics: [
+        {
+          range: {
+            start: { line: 0, character: 0 },
+            end: { line: 0, character: 0 },
+          },
+          severity: DiagnosticSeverity.Warning,
+          source: 'compact-lsp',
+          message: 'File too large for analysis. LSP features disabled.',
+        },
+      ],
+    });
+    return;
+  }
+
+  const tokens = tokenize(text);
   const parseResult = parse(text);
   const { fileScope, references } = buildSymbolTable(parseResult.sourceFile);
-  documentState.set(uri, { parseResult, fileScope, references, source: text });
+  documentState.set(uri, { parseResult, fileScope, references, source: text, tokens });
 
   const diagnostics = computeDiagnostics(parseResult.errors, references, fileScope);
   const lspDiagnostics: LspDiagnostic[] = diagnostics.map((d) => ({
@@ -118,7 +147,7 @@ connection.onHover((params): Hover | undefined => {
     state.fileScope,
     params.position.line,
     params.position.character,
-    state.source,
+    state.tokens,
   );
 
   if (!result) return undefined;
@@ -145,7 +174,7 @@ connection.onDefinition((params): Location | undefined => {
     state.references,
     params.position.line,
     params.position.character,
-    state.source,
+    state.tokens,
   );
 
   if (!result) return undefined;
@@ -169,7 +198,7 @@ connection.onReferences((params): Location[] => {
     state.references,
     params.position.line,
     params.position.character,
-    state.source,
+    state.tokens,
     params.context.includeDeclaration,
   );
 
@@ -262,7 +291,7 @@ connection.onPrepareRename((params) => {
     state.references,
     params.position.line,
     params.position.character,
-    state.source,
+    state.tokens,
   );
 
   if (!result) return undefined;
@@ -286,7 +315,7 @@ connection.onRenameRequest((params): WorkspaceEdit | undefined => {
     state.references,
     params.position.line,
     params.position.character,
-    state.source,
+    state.tokens,
     params.newName,
   );
 
@@ -317,6 +346,7 @@ connection.onSignatureHelp((params): SignatureHelp | undefined => {
     params.position.line,
     params.position.character,
     state.source,
+    state.tokens,
   );
 
   if (!result) return undefined;
@@ -337,8 +367,8 @@ connection.onRequest(SemanticTokensRequest.type, (params) => {
   const state = documentState.get(params.textDocument.uri);
   if (!state) return { data: [] };
 
-  const tokens = getSemanticTokens(state.parseResult, state.fileScope, state.source);
-  const data = encodeSemanticTokens(tokens);
+  const semTokens = getSemanticTokens(state.parseResult, state.fileScope, state.tokens);
+  const data = encodeSemanticTokens(semTokens);
 
   return { data };
 });

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { tokenize } from '../lexer';
 import { parse } from '../parser';
 import { buildSymbolTable } from '../symbols';
 import {
@@ -16,7 +17,8 @@ const READONLY_BIT = 1 << modIdx('readonly');
 function tokens(source: string) {
   const parseResult = parse(source);
   const { fileScope } = buildSymbolTable(parseResult.sourceFile);
-  return getSemanticTokens(parseResult, fileScope, source);
+  const lexTokens = tokenize(source);
+  return getSemanticTokens(parseResult, fileScope, lexTokens);
 }
 
 function findToken(source: string, text: string, occurrence = 0) {

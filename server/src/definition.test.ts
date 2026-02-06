@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { tokenize } from './lexer';
 import { parse } from './parser';
 import { buildSymbolTable } from './symbols';
 import { getDefinition } from './definition';
@@ -6,7 +7,8 @@ import { getDefinition } from './definition';
 function definition(source: string, line: number, column: number) {
   const result = parse(source);
   const { fileScope, references } = buildSymbolTable(result.sourceFile);
-  return getDefinition(result, fileScope, references, line, column, source);
+  const tokens = tokenize(source);
+  return getDefinition(result, fileScope, references, line, column, tokens);
 }
 
 describe('Definition Provider', () => {

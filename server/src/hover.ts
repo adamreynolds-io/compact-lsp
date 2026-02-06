@@ -1,4 +1,4 @@
-import { TokenKind, tokenize } from './lexer';
+import { Token, TokenKind } from './lexer';
 import { SourceRange } from './ast';
 import { Scope, resolveSymbol, formatSignature } from './symbols';
 import { ParseResult } from './ast';
@@ -14,10 +14,9 @@ export function getHoverInfo(
   fileScope: Scope,
   line: number,
   column: number,
-  source: string,
+  tokens: Token[],
 ): HoverResult | undefined {
   // Find the token at position
-  const tokens = tokenize(source);
   const token = findTokenAtPosition(tokens, line, column);
   if (!token) return undefined;
 

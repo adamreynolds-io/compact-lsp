@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { tokenize } from '../lexer';
 import { parse } from '../parser';
 import { buildSymbolTable } from '../symbols';
 import { getSignatureHelp } from '../signatureHelp';
@@ -6,7 +7,8 @@ import { getSignatureHelp } from '../signatureHelp';
 function sigHelp(source: string, line: number, column: number) {
   const parseResult = parse(source);
   const { fileScope } = buildSymbolTable(parseResult.sourceFile);
-  return getSignatureHelp(parseResult, fileScope, line, column, source);
+  const tokens = tokenize(source);
+  return getSignatureHelp(parseResult, fileScope, line, column, source, tokens);
 }
 
 describe('Signature Help', () => {

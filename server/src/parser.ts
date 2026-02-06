@@ -650,11 +650,7 @@ class Parser {
     };
   }
 
-  private parseExportList(startPos: {
-    line: number;
-    column: number;
-    offset: number;
-  }): ExportList {
+  private parseExportList(startPos: { line: number; column: number; offset: number }): ExportList {
     this.expect(TokenKind.OpenBrace);
     const names: { name: string; range: SourceRange }[] = [];
 
@@ -1018,8 +1014,12 @@ class Parser {
       while (!this.check(TokenKind.CloseBrace) && !this.isAtEnd()) {
         this.collectStatement(statements);
       }
-    } catch {
+    } catch (e) {
       // Fallback to brace matching on unrecoverable error
+      this.errors.push({
+        message: `Internal parser error: ${e instanceof Error ? e.message : String(e)}`,
+        range: { start: startPos, end: startPos },
+      });
       this.fallbackBraceMatch();
       const endPos = this.current().pos;
       if (this.check(TokenKind.CloseBrace)) {
@@ -1094,8 +1094,12 @@ class Parser {
         default:
           return this.parseExpressionStatement();
       }
-    } catch {
+    } catch (e) {
       // Statement-level error recovery: synchronize at ; or }
+      this.errors.push({
+        message: `Internal parser error: ${e instanceof Error ? e.message : String(e)}`,
+        range: { start: startPos, end: startPos },
+      });
       return this.recoverToStatementBoundary(startPos);
     }
   }
@@ -1129,11 +1133,7 @@ class Parser {
     return bindings;
   }
 
-  private parseConstBinding(startPos: {
-    line: number;
-    column: number;
-    offset: number;
-  }): Statement {
+  private parseConstBinding(startPos: { line: number; column: number; offset: number }): Statement {
     // Check for destructuring: [a, b] or {a, b}
     if (this.check(TokenKind.OpenBracket)) {
       return this.parseTupleDestructuring(startPos);
@@ -1434,20 +1434,39 @@ class Parser {
   }
 
   // Pratt expression parser
-  private parseExpression(minPrec: Precedence): Expression {
-    let left = this.parsePrefixExpression();
+  private static readonly MAX_EXPRESSION_DEPTH = 200;
+
+  private parseExpression(minPrec: Precedence, depth: number = 0): Expression {
+    if (depth > Parser.MAX_EXPRESSION_DEPTH) {
+      const pos = this.current().pos;
+      this.errors.push({
+        message: 'Expression too deeply nested',
+        range: { start: pos, end: pos },
+      });
+      // Skip tokens to avoid cascading errors from unconsumed input
+      if (!this.isAtEnd()) {
+        this.advance();
+      }
+      return {
+        kind: 'IdentifierExpression',
+        name: '<error>',
+        range: { start: pos, end: pos },
+      };
+    }
+
+    let left = this.parsePrefixExpression(depth);
 
     while (!this.isAtEnd()) {
       const prec = getInfixPrecedence(this.current().kind);
       if (prec <= minPrec) break;
 
-      left = this.parseInfixExpression(left, prec);
+      left = this.parseInfixExpression(left, prec, depth);
     }
 
     return left;
   }
 
-  private parsePrefixExpression(): Expression {
+  private parsePrefixExpression(depth: number = 0): Expression {
     const startPos = this.current().pos;
 
     switch (this.current().kind) {
@@ -1455,7 +1474,7 @@ class Parser {
         const token = this.advance();
         // Bytes[...] literal
         if (token.text === 'Bytes' && this.check(TokenKind.OpenBracket)) {
-          return this.parseBytesLiteral(startPos);
+          return this.parseBytesLiteral(startPos, depth);
         }
         const identExpr: Expression = {
           kind: 'IdentifierExpression',
@@ -1471,7 +1490,7 @@ class Parser {
         };
         // Check for struct construction: Name { field: value, ... }
         if (this.check(TokenKind.OpenBrace) && this.looksLikeStructConstruction()) {
-          return this.parseStructConstruction(token.text, startPos);
+          return this.parseStructConstruction(token.text, startPos, depth);
         }
         return identExpr;
       }
@@ -1480,7 +1499,7 @@ class Parser {
         const token = this.advance();
         // Bytes[...] literal
         if (token.text === 'Bytes' && this.check(TokenKind.OpenBracket)) {
-          return this.parseBytesLiteral(startPos);
+          return this.parseBytesLiteral(startPos, depth);
         }
         return {
           kind: 'IdentifierExpression',
@@ -1549,7 +1568,7 @@ class Parser {
 
       case TokenKind.Bang: {
         this.advance();
-        const operand = this.parseExpression(Precedence.Unary);
+        const operand = this.parseExpression(Precedence.Unary, depth + 1);
         return {
           kind: 'UnaryExpression',
           operator: '!',
@@ -1560,13 +1579,13 @@ class Parser {
 
       case TokenKind.OpenParen: {
         // Could be parenthesized expression or arrow function
-        return this.parseParenExprOrArrow();
+        return this.parseParenExprOrArrow(depth);
       }
 
       case TokenKind.Ellipsis: {
         // Spread expression: ...expr
         this.advance();
-        const argument = this.parseExpression(Precedence.Unary);
+        const argument = this.parseExpression(Precedence.Unary, depth + 1);
         return {
           kind: 'SpreadExpression',
           argument,
@@ -1576,7 +1595,7 @@ class Parser {
 
       case TokenKind.OpenBracket: {
         // Tuple literal: [a, b, c]
-        return this.parseTupleLiteral();
+        return this.parseTupleLiteral(depth);
       }
 
       default: {
@@ -1596,7 +1615,7 @@ class Parser {
     }
   }
 
-  private parseInfixExpression(left: Expression, prec: Precedence): Expression {
+  private parseInfixExpression(left: Expression, prec: Precedence, depth: number = 0): Expression {
     const kind = this.current().kind;
 
     // Assignment operators (right-associative)
@@ -1606,7 +1625,7 @@ class Parser {
       kind === TokenKind.MinusEquals
     ) {
       const opToken = this.advance();
-      const right = this.parseExpression(Precedence.Assignment - 1);
+      const right = this.parseExpression(Precedence.Assignment - 1, depth + 1);
       return {
         kind: 'AssignmentExpression',
         operator: opToken.text,
@@ -1619,9 +1638,9 @@ class Parser {
     // Ternary conditional
     if (kind === TokenKind.Question) {
       this.advance();
-      const consequent = this.parseExpression(Precedence.None);
+      const consequent = this.parseExpression(Precedence.None, depth + 1);
       this.expect(TokenKind.Colon);
-      const alternate = this.parseExpression(Precedence.Ternary - 1);
+      const alternate = this.parseExpression(Precedence.Ternary - 1, depth + 1);
       return {
         kind: 'ConditionalExpression',
         condition: left,
@@ -1666,7 +1685,7 @@ class Parser {
     // Index access
     if (kind === TokenKind.OpenBracket) {
       this.advance();
-      const index = this.parseExpression(Precedence.None);
+      const index = this.parseExpression(Precedence.None, depth + 1);
       const endPos = this.current().pos;
       this.expect(TokenKind.CloseBracket);
       return {
@@ -1685,7 +1704,7 @@ class Parser {
       this.advance();
       const args: Expression[] = [];
       while (!this.check(TokenKind.CloseParen) && !this.isAtEnd()) {
-        args.push(this.parseExpression(Precedence.None));
+        args.push(this.parseExpression(Precedence.None, depth + 1));
         if (this.check(TokenKind.Comma)) {
           this.advance();
         }
@@ -1705,7 +1724,7 @@ class Parser {
 
     // Binary operators
     const opToken = this.advance();
-    const right = this.parseExpression(prec);
+    const right = this.parseExpression(prec, depth + 1);
     return {
       kind: 'BinaryExpression',
       operator: opToken.text,
@@ -1754,6 +1773,7 @@ class Parser {
   private parseStructConstruction(
     name: string,
     startPos: { line: number; column: number; offset: number },
+    depth: number = 0,
   ): Expression {
     this.expect(TokenKind.OpenBrace);
     const fields: { name: string; value: Expression; isShorthand?: boolean; range: SourceRange }[] =
@@ -1765,7 +1785,7 @@ class Parser {
       if (this.check(TokenKind.Ellipsis)) {
         const spreadStart = this.current().pos;
         this.advance(); // consume '...'
-        const arg = this.parseExpression(Precedence.None);
+        const arg = this.parseExpression(Precedence.None, depth + 1);
         spread = {
           kind: 'SpreadExpression',
           argument: arg,
@@ -1783,7 +1803,7 @@ class Parser {
       if (this.check(TokenKind.Colon)) {
         // Explicit: field: value
         this.advance();
-        const value = this.parseExpression(Precedence.None);
+        const value = this.parseExpression(Precedence.None, depth + 1);
         const fieldEnd = value.range.end;
         fields.push({
           name: fieldName,
@@ -1825,24 +1845,27 @@ class Parser {
     };
   }
 
-  private parseParenExprOrArrow(): Expression {
+  private parseParenExprOrArrow(depth: number = 0): Expression {
     const startPos = this.current().pos;
 
     // Try to detect arrow function: (params) => body
     if (this.looksLikeArrowFunction()) {
-      return this.parseArrowFunction(startPos);
+      return this.parseArrowFunction(startPos, depth);
     }
 
     // Parenthesized expression
     this.advance(); // consume (
-    const expr = this.parseExpression(Precedence.None);
+    const expr = this.parseExpression(Precedence.None, depth + 1);
     this.expect(TokenKind.CloseParen);
     return expr;
   }
 
+  private static readonly LOOKAHEAD_LIMIT = 500;
+
   private looksLikeArrowFunction(): boolean {
     // Save position and look ahead
     const saved = this.pos;
+    const exceedsLimit = () => this.pos - saved > Parser.LOOKAHEAD_LIMIT;
     this.advance(); // skip (
 
     // () => ... is arrow
@@ -1858,10 +1881,9 @@ class Parser {
       // Skip to matching close bracket/brace, then check for ) =>
       let depth = 1;
       const open = this.current().kind;
-      const close =
-        open === TokenKind.OpenBracket ? TokenKind.CloseBracket : TokenKind.CloseBrace;
+      const close = open === TokenKind.OpenBracket ? TokenKind.CloseBracket : TokenKind.CloseBrace;
       this.advance();
-      while (depth > 0 && !this.isAtEnd()) {
+      while (depth > 0 && !this.isAtEnd() && !exceedsLimit()) {
         if (this.current().kind === open) depth++;
         if (this.current().kind === close) depth--;
         if (depth > 0) this.advance();
@@ -1874,7 +1896,8 @@ class Parser {
           while (
             !this.check(TokenKind.CloseParen) &&
             !this.check(TokenKind.Comma) &&
-            !this.isAtEnd()
+            !this.isAtEnd() &&
+            !exceedsLimit()
           ) {
             this.advance();
           }
@@ -1882,7 +1905,7 @@ class Parser {
         // Skip to closing paren
         let parenDepth = 1;
         this.pos = saved + 1;
-        while (parenDepth > 0 && !this.isAtEnd()) {
+        while (parenDepth > 0 && !this.isAtEnd() && !exceedsLimit()) {
           if (this.check(TokenKind.OpenParen)) parenDepth++;
           if (this.check(TokenKind.CloseParen)) parenDepth--;
           if (parenDepth > 0) this.advance();
@@ -1911,7 +1934,7 @@ class Parser {
         let depth = 1;
         // Rewind to just after (
         this.pos = saved + 1;
-        while (depth > 0 && !this.isAtEnd()) {
+        while (depth > 0 && !this.isAtEnd() && !exceedsLimit()) {
           if (this.check(TokenKind.OpenParen)) depth++;
           if (this.check(TokenKind.CloseParen)) depth--;
           if (depth > 0) this.advance();
@@ -1929,11 +1952,14 @@ class Parser {
     return false;
   }
 
-  private parseArrowFunction(startPos: {
-    line: number;
-    column: number;
-    offset: number;
-  }): Expression {
+  private parseArrowFunction(
+    startPos: {
+      line: number;
+      column: number;
+      offset: number;
+    },
+    depth: number = 0,
+  ): Expression {
     const params = this.parseParameterList();
     this.expect(TokenKind.Arrow);
 
@@ -1958,7 +1984,7 @@ class Parser {
     }
 
     // Expression body: (x) => expr
-    const body = this.parseExpression(Precedence.None);
+    const body = this.parseExpression(Precedence.None, depth + 1);
     return {
       kind: 'ArrowFunction',
       params,
@@ -1967,13 +1993,13 @@ class Parser {
     };
   }
 
-  private parseTupleLiteral(): Expression {
+  private parseTupleLiteral(depth: number = 0): Expression {
     const startPos = this.current().pos;
     this.expect(TokenKind.OpenBracket);
     const elements: Expression[] = [];
 
     while (!this.check(TokenKind.CloseBracket) && !this.isAtEnd()) {
-      elements.push(this.parseExpression(Precedence.None));
+      elements.push(this.parseExpression(Precedence.None, depth + 1));
       if (this.check(TokenKind.Comma)) {
         this.advance();
       }
@@ -1992,16 +2018,19 @@ class Parser {
     };
   }
 
-  private parseBytesLiteral(startPos: {
-    line: number;
-    column: number;
-    offset: number;
-  }): Expression {
+  private parseBytesLiteral(
+    startPos: {
+      line: number;
+      column: number;
+      offset: number;
+    },
+    depth: number = 0,
+  ): Expression {
     this.expect(TokenKind.OpenBracket);
     const elements: Expression[] = [];
 
     while (!this.check(TokenKind.CloseBracket) && !this.isAtEnd()) {
-      elements.push(this.parseExpression(Precedence.None));
+      elements.push(this.parseExpression(Precedence.None, depth + 1));
       if (this.check(TokenKind.Comma)) {
         this.advance();
       }

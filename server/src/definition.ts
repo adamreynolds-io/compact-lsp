@@ -1,4 +1,4 @@
-import { TokenKind, tokenize } from './lexer';
+import { Token, TokenKind } from './lexer';
 import { SourceRange, ParseResult } from './ast';
 import { Scope, Reference, resolveSymbol } from './symbols';
 import { findTokenAtPosition, findScopeForPosition } from './utils';
@@ -13,10 +13,9 @@ export function getDefinition(
   references: Reference[],
   line: number,
   column: number,
-  source: string,
+  tokens: Token[],
 ): DefinitionResult | undefined {
   // Find the token at position
-  const tokens = tokenize(source);
   const token = findTokenAtPosition(tokens, line, column);
   if (!token) return undefined;
 

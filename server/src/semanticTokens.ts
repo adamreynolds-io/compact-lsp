@@ -1,4 +1,4 @@
-import { Token, TokenKind, tokenize } from './lexer';
+import { Token, TokenKind } from './lexer';
 import { ParseResult } from './ast';
 import { Scope, SymbolKind, SymbolInfo, resolveSymbol } from './symbols';
 import { findScopeForPosition } from './utils';
@@ -89,9 +89,8 @@ const symbolKindToTokenType: Record<SymbolKind, number> = {
 export function getSemanticTokens(
   parseResult: ParseResult,
   fileScope: Scope,
-  source: string,
+  tokens: Token[],
 ): SemanticToken[] {
-  const tokens = tokenize(source);
   const result: SemanticToken[] = [];
 
   for (const token of tokens) {

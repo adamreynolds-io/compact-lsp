@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { tokenize } from './lexer';
 import { parse } from './parser';
 import { buildSymbolTable } from './symbols';
 import { findReferences } from './references';
@@ -6,7 +7,8 @@ import { findReferences } from './references';
 function references(source: string, line: number, column: number, includeDeclaration = true) {
   const result = parse(source);
   const { fileScope, references: refs } = buildSymbolTable(result.sourceFile);
-  return findReferences(result, fileScope, refs, line, column, source, includeDeclaration);
+  const tokens = tokenize(source);
+  return findReferences(result, fileScope, refs, line, column, tokens, includeDeclaration);
 }
 
 describe('References Provider', () => {

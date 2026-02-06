@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { tokenize } from '../lexer';
 import { parse } from '../parser';
 import { buildSymbolTable } from '../symbols';
 import { prepareRename, getRenameEdits } from '../rename';
@@ -6,13 +7,15 @@ import { prepareRename, getRenameEdits } from '../rename';
 function prepare(source: string, line: number, column: number) {
   const parseResult = parse(source);
   const { fileScope, references } = buildSymbolTable(parseResult.sourceFile);
-  return prepareRename(parseResult, fileScope, references, line, column, source);
+  const tokens = tokenize(source);
+  return prepareRename(parseResult, fileScope, references, line, column, tokens);
 }
 
 function rename(source: string, line: number, column: number, newName: string) {
   const parseResult = parse(source);
   const { fileScope, references } = buildSymbolTable(parseResult.sourceFile);
-  return getRenameEdits(parseResult, fileScope, references, line, column, source, newName);
+  const tokens = tokenize(source);
+  return getRenameEdits(parseResult, fileScope, references, line, column, tokens, newName);
 }
 
 describe('Rename Provider', () => {

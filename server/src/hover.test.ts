@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { tokenize } from './lexer';
 import { parse } from './parser';
 import { buildSymbolTable } from './symbols';
 import { getHoverInfo } from './hover';
@@ -6,7 +7,8 @@ import { getHoverInfo } from './hover';
 function hover(source: string, line: number, column: number) {
   const result = parse(source);
   const { fileScope } = buildSymbolTable(result.sourceFile);
-  return getHoverInfo(result, fileScope, line, column, source);
+  const tokens = tokenize(source);
+  return getHoverInfo(result, fileScope, line, column, tokens);
 }
 
 describe('Hover Provider', () => {

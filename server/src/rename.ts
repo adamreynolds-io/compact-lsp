@@ -1,4 +1,4 @@
-import { TokenKind, tokenize } from './lexer';
+import { Token, TokenKind } from './lexer';
 import { SourceRange, ParseResult } from './ast';
 import { Scope, Reference, resolveSymbol } from './symbols';
 import { findReferences } from './references';
@@ -20,9 +20,8 @@ export function prepareRename(
   references: Reference[],
   line: number,
   column: number,
-  source: string,
+  tokens: Token[],
 ): PrepareRenameResult | undefined {
-  const tokens = tokenize(source);
   const token = findTokenAtPosition(tokens, line, column);
   if (!token) return undefined;
 
@@ -70,10 +69,10 @@ export function getRenameEdits(
   references: Reference[],
   line: number,
   column: number,
-  source: string,
+  tokens: Token[],
   newName: string,
 ): RenameEdit[] {
-  const ranges = findReferences(parseResult, fileScope, references, line, column, source, true);
+  const ranges = findReferences(parseResult, fileScope, references, line, column, tokens, true);
 
   return ranges.map((range) => ({
     range,

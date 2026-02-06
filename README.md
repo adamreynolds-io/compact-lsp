@@ -45,7 +45,7 @@ npm install
 # Build all workspaces
 npm run build
 
-# Run tests (227 tests across 13 test files)
+# Run tests (297 tests across 13 test files)
 npm test
 
 # Run tests in watch mode
