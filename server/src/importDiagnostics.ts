@@ -30,6 +30,7 @@ export function computeImportDiagnostics(
         range: decl.range,
         severity: 'error',
         source: 'compact-lsp',
+        code: 'module-not-found',
       });
       continue;
     }
@@ -45,6 +46,7 @@ export function computeImportDiagnostics(
               range: spec.range,
               severity: 'error',
               source: 'compact-lsp',
+              code: 'specifier-not-exported',
             });
           }
         }

@@ -23,6 +23,7 @@ describe('Import Diagnostics', () => {
 
     expect(diagnostics.length).toBe(1);
     expect(diagnostics[0].message).toContain("Module 'UnknownModule' not found");
+    expect(diagnostics[0].code).toBe('module-not-found');
   });
 
   it('reports unknown specifier from resolved module', () => {
@@ -43,6 +44,7 @@ describe('Import Diagnostics', () => {
 
     expect(diagnostics.length).toBe(1);
     expect(diagnostics[0].message).toContain("does not export 'nonExported'");
+    expect(diagnostics[0].code).toBe('specifier-not-exported');
   });
 
   it('reports no diagnostic for valid import', () => {

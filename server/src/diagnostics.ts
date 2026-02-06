@@ -6,6 +6,7 @@ export interface Diagnostic {
   range: SourceRange;
   severity: 'error' | 'warning';
   source: string;
+  code?: string;
 }
 
 export function computeDiagnostics(
@@ -34,6 +35,7 @@ export function computeDiagnostics(
           range: ref.range,
           severity: 'error',
           source: 'compact-lsp',
+          code: 'undefined-reference',
         });
       }
     }

@@ -1,3 +1,5 @@
+## MODIFIED Requirements
+
 ### Requirement: Import diagnostics merged with existing diagnostics
 The diagnostics pipeline SHALL include import-related diagnostics (unresolvable modules, unresolvable specifiers) alongside existing parse error and undefined reference diagnostics. Each diagnostic SHALL include a stable `code` field identifying its type.
 
@@ -20,6 +22,8 @@ The undefined reference diagnostics SHALL NOT flag imported symbols that are reg
 - **WHEN** a file has `import { add } from MathUtils;` and uses `add` in a circuit body
 - **THEN** `add` is NOT flagged as an undefined reference (it is registered in scope from the import)
 - **AND** if `MathUtils` is not found, a separate module-not-found diagnostic is reported on the import line
+
+## ADDED Requirements
 
 ### Requirement: Diagnostics have stable codes
 Each diagnostic type SHALL have a stable string `code` field on the `Diagnostic` interface. The `code` field is optional (parse errors may omit it). The codes SHALL be:

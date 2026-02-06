@@ -21,6 +21,7 @@ import {
   ParameterInformation,
   SemanticTokensRequest,
   FileChangeType,
+  CodeActionKind,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as fs from 'fs';
@@ -46,6 +47,7 @@ import { ParseResult } from './ast';
 import { WorkspaceIndex } from './workspaceIndex';
 import { computeImportDiagnostics } from './importDiagnostics';
 import { fsPathToUri, uriToFsPath } from './moduleResolution';
+import { getCodeActions } from './codeActions';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
@@ -87,6 +89,9 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       },
       signatureHelpProvider: {
         triggerCharacters: ['(', ','],
+      },
+      codeActionProvider: {
+        codeActionKinds: [CodeActionKind.QuickFix, CodeActionKind.Refactor],
       },
       semanticTokensProvider: {
         legend: {
@@ -204,6 +209,7 @@ function analyzeDocument(uri: string, text: string): void {
     severity: d.severity === 'error' ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning,
     source: d.source,
     message: d.message,
+    ...(d.code !== undefined && { code: d.code }),
   }));
 
   connection.sendDiagnostics({ uri, diagnostics: lspDiagnostics });
@@ -260,6 +266,7 @@ function reanalyzeDependentFiles(changedUri: string): void {
               d.severity === 'error' ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning,
             source: d.source,
             message: d.message,
+            ...(d.code !== undefined && { code: d.code }),
           }));
 
           connection.sendDiagnostics({ uri: fileUri, diagnostics: lspDiags });
@@ -525,6 +532,69 @@ connection.onRequest(SemanticTokensRequest.type, (params) => {
   const data = encodeSemanticTokens(semTokens);
 
   return { data };
+});
+
+connection.onCodeAction((params) => {
+  const state = documentState.get(params.textDocument.uri);
+  if (!state) return [];
+
+  // Map LSP diagnostics back to our Diagnostic type
+  const diagnostics = params.context.diagnostics.map((d) => ({
+    message: d.message,
+    range: {
+      start: { line: d.range.start.line, column: d.range.start.character, offset: 0 },
+      end: { line: d.range.end.line, column: d.range.end.character, offset: 0 },
+    },
+    severity: (d.severity === DiagnosticSeverity.Error ? 'error' : 'warning') as 'error' | 'warning',
+    source: d.source || 'compact-lsp',
+    code: typeof d.code === 'string' ? d.code : typeof d.code === 'number' ? String(d.code) : undefined,
+  }));
+
+  const range = {
+    start: { line: params.range.start.line, column: params.range.start.character, offset: 0 },
+    end: { line: params.range.end.line, column: params.range.end.character, offset: 0 },
+  };
+
+  const actions = getCodeActions(
+    state.parseResult,
+    state.fileScope,
+    state.references,
+    state.tokens,
+    diagnostics,
+    range,
+    state.source,
+    workspaceIndex,
+  );
+
+  return actions.map((action) => {
+    // Group edits by URI
+    const changes: Record<string, TextEdit[]> = {};
+    for (const edit of action.edits) {
+      const editUri = edit.uri || params.textDocument.uri;
+      if (!changes[editUri]) changes[editUri] = [];
+      changes[editUri].push({
+        range: {
+          start: { line: edit.range.start.line, character: edit.range.start.column },
+          end: { line: edit.range.end.line, character: edit.range.end.column },
+        },
+        newText: edit.newText,
+      });
+    }
+
+    return {
+      title: action.title,
+      kind: action.kind === 'quickfix' ? CodeActionKind.QuickFix : CodeActionKind.Refactor,
+      diagnostics: action.diagnostics?.map((d) =>
+        params.context.diagnostics.find(
+          (ld) =>
+            ld.message === d.message &&
+            ld.range.start.line === d.range.start.line &&
+            ld.range.start.character === d.range.start.column,
+        ),
+      ).filter((d): d is NonNullable<typeof d> => d !== undefined),
+      edit: { changes },
+    };
+  });
 });
 
 documents.listen(connection);

@@ -11,6 +11,7 @@ describe('Diagnostics Provider', () => {
       expect(diagnostics.length).toBeGreaterThan(0);
       expect(diagnostics[0].severity).toBe('error');
       expect(diagnostics[0].source).toBe('compact-lsp');
+      expect(diagnostics[0].code).toBeUndefined();
     });
 
     it('reports multiple syntax errors', () => {
@@ -62,6 +63,7 @@ describe('Diagnostics Provider', () => {
       const undefDiag = diagnostics.find((d) => d.message.includes("'unknown' is not defined"));
       expect(undefDiag).toBeDefined();
       expect(undefDiag!.severity).toBe('error');
+      expect(undefDiag!.code).toBe('undefined-reference');
     });
 
     it('does not report error for parameter reference inside body', () => {
@@ -152,6 +154,7 @@ describe('Diagnostics Provider', () => {
       const undefDiag = diagnostics.find((d) => d.message.includes("'y' is not defined"));
       expect(undefDiag).toBeDefined();
       expect(undefDiag!.severity).toBe('error');
+      expect(undefDiag!.code).toBe('undefined-reference');
     });
   });
 });
