@@ -2,7 +2,7 @@ id = "compact"
 name = "Compact"
 version = "0.1.0"
 description = "Compact smart contract language support via compact-lsp"
-authors = ["Adam Reynolds <adam@adamreynolds.io>"]
+authors = ["Adam Reynolds <adam.reynolds@ashielded.io>"]
 repository = "https://github.com/adamreynolds-io/compact-lsp"
 schema_version = 1
 

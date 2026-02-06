@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Language Server Protocol (LSP) server for the Compact smart contract language",
   "license": "Apache-2.0",
-  "author": "Adam Reynolds <adam@adamreynolds.io>",
+  "author": "Adam Reynolds <adam.reynolds@ashielded.io>",
   "repository": {
     "type": "git",
     "url": "https://github.com/adamreynolds-io/compact-lsp.git",
