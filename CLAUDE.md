@@ -2,16 +2,22 @@
 
 ## Purpose
 
-compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language](https://github.com/LFDT-Minokawa/compact), a smart contract programming language. The initial goal is a simple, demoable proof of concept providing basic IDE features for `.compact` files in VS Code.
+compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language](https://github.com/LFDT-Minokawa/compact), a smart contract programming language, providing rich IDE features for `.compact` files in VS Code.
 
-### POC Scope
-- **Diagnostics:** Surface errors and warnings from the Compact compiler as editor squiggles
-- **Hover:** Display type information or documentation when hovering over symbols
+### Current Capabilities
+- **Diagnostics:** Parse errors and undefined reference warnings
+- **Hover:** Type information and signatures on hover
+- **Go to Definition:** Jump to symbol declarations
+- **Find References:** Find all usages of a symbol
+- **Auto-completion:** Context-aware symbol suggestions
+- **Document Symbols:** Hierarchical symbol outline
+- **Rename Symbol:** Rename a symbol and all its references
+- **Signature Help:** Parameter hints for function calls
+- **Semantic Tokens:** Symbol-aware syntax highlighting
 
-### Future Goals (Post-POC)
-- Go-to-definition and find references
-- Auto-completion
-- Standalone server mode for other editors
+### Future Goals
+- Standalone server mode for other editors (Neovim, Emacs, etc.)
+- Marketplace publishing for the VS Code extension
 
 ## Tech Stack
 
@@ -55,13 +61,19 @@ compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language
 ### LSP Concepts
 - LSP separates the editor (client) from language intelligence (server)
 - Communication happens over JSON-RPC (stdio for VS Code extensions)
-- Key capabilities for this POC:
-  - `textDocument/publishDiagnostics` - push errors/warnings to editor
-  - `textDocument/hover` - respond to hover requests with symbol info
+- Supported LSP methods:
+  - `textDocument/publishDiagnostics` — push errors/warnings to editor
+  - `textDocument/hover` — type information and signatures
+  - `textDocument/definition` — go to symbol declaration
+  - `textDocument/references` — find all symbol usages
+  - `textDocument/completion` — context-aware suggestions
+  - `textDocument/documentSymbol` — hierarchical outline
+  - `textDocument/rename` and `textDocument/prepareRename` — symbol renaming
+  - `textDocument/signatureHelp` — parameter hints
+  - `textDocument/semanticTokens/full` — rich syntax highlighting
 
 ## Important Constraints
 
-- **POC Focus:** Keep scope minimal - Diagnostics and Hover only
 - **Integration:** Must work with the existing Compact compiler/parser
 - **Performance:** Should handle typical smart contract file sizes without noticeable lag
 
