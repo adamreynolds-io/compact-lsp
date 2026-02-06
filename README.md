@@ -17,6 +17,7 @@ A Language Server Protocol (LSP) implementation for the [Compact](https://github
 - **Folding Ranges** — Code folding for modules, circuits, structs, enums, control flow, and import groups
 - **Multi-file Analysis** — Workspace-wide indexing with cross-file navigation and import diagnostics
 - **Version-Aware Parsing** — Pragma-based version gating of built-in types, functions, and ADT types
+- **MCP Server** — Model Context Protocol server exposing all language features as tools for AI agents
 
 ## Installation
 
@@ -49,7 +50,7 @@ npm install
 # Build all workspaces
 npm run build
 
-# Run tests (471 tests across 23 test files)
+# Run tests (501 tests across 26 test files)
 npm test
 
 # Run tests in watch mode
@@ -97,6 +98,12 @@ compact-lsp/
 │   ├── src/
 │   │   └── extension.ts    # Extension entry point
 │   └── package.json        # Extension manifest (language contribution, activation)
+├── mcp-server/             # MCP server for AI agents
+│   ├── src/
+│   │   ├── index.ts        # CLI entry point (--workspace arg, stdio transport)
+│   │   ├── server.ts       # MCP tool and resource registration
+│   │   └── workspace.ts    # Workspace manager wrapping WorkspaceIndex
+│   └── package.json
 └── package.json            # Root workspace config
 ```
 
@@ -107,11 +114,11 @@ compact-lsp/
 - **Vitest** — Test framework
 - **vscode-languageserver** — Microsoft's LSP implementation for Node.js
 - **vscode-languageclient** — Client library for the VS Code extension
+- **@modelcontextprotocol/sdk** — MCP server SDK for AI agent integration
 
 ## Links
 
-- [Compact Language (original)](https://github.com/LFDT-Minokawa/compact)
-- [Compact Language (active development)](https://github.com/midnightntwrk/compact)
+- [Compact Language](https://github.com/LFDT-Minokawa/compact)
 
 ## License
 

@@ -1,0 +1,22 @@
+{
+  "name": "compact-mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "out/index.js",
+  "bin": {
+    "compact-mcp-server": "out/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "watch": "tsc -b -w"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "compact-lsp-server": "*",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

@@ -18,6 +18,7 @@ compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language
 - **Folding Ranges:** Code folding for modules, circuits, structs, enums, control flow, and import groups
 - **Multi-file Analysis:** Workspace-wide indexing with cross-file navigation and import diagnostics
 - **Version-Aware Parsing:** Pragma-based version gating of built-in types, functions, and ADT types
+- **MCP Server:** Model Context Protocol server exposing all language features as tools for AI agents (Claude Code, Cursor, etc.)
 
 ### Future Goals
 - Standalone server mode for other editors (Neovim, Emacs, etc.)
@@ -29,6 +30,7 @@ compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language
 - **Runtime:** Node.js
 - **Testing:** Vitest
 - **LSP Library:** vscode-languageserver (Microsoft's official LSP implementation for Node.js)
+- **MCP Library:** @modelcontextprotocol/sdk (Model Context Protocol for AI agent integration)
 - **Editor Integration:** VS Code extension using vscode-languageclient
 
 ## Project Conventions
@@ -39,8 +41,9 @@ compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language
 - Run `npm run lint` and `npm run format` before committing
 
 ### Architecture Patterns
-- Separate LSP server logic from VS Code extension client
+- Three packages: `server/` (LSP server), `extension/` (VS Code client), `mcp-server/` (MCP server for AI agents)
 - Hand-written lexer and Pratt parser (no external compiler dependency)
+- MCP server reuses the same analysis pipeline (lexer, parser, symbol table, providers) as the LSP server
 - Keep the codebase minimal - this is a POC, avoid over-engineering
 
 ### Testing Strategy
@@ -58,9 +61,7 @@ compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language
 ### The Compact Language
 - **Purpose:** Smart contract development for blockchain/distributed ledger platforms
 - **File Extension:** `.compact`
-- **Repositories:**
-  - https://github.com/LFDT-Minokawa/compact (original)
-  - https://github.com/midnightntwrk/compact (active development)
+- **Repository:** https://github.com/LFDT-Minokawa/compact
 - **Version Registry Maintenance:** Periodically check https://github.com/OpenZeppelin/compact-contracts for `pragma language_version` updates. If the contracts move to a newer version, add a corresponding entry to `server/src/versionRegistry.ts` with the appropriate built-in types, functions, and ADT types, and add documentation to `server/src/builtinDocs.ts`.
 
 ### LSP Concepts
@@ -88,6 +89,8 @@ compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language
 
 - **vscode-languageserver:** Microsoft's LSP implementation for Node.js
 - **vscode-languageclient:** Client library for VS Code extension
+- **@modelcontextprotocol/sdk:** MCP server SDK with stdio transport (used by mcp-server package)
+- **zod:** Schema validation (peer dependency of MCP SDK, used in mcp-server only)
 - **Note:** The project uses a hand-written lexer and parser — there is no runtime dependency on the Compact compiler
 
 ## Research References (Not Implementation Dependencies)

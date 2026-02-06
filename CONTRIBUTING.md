@@ -50,7 +50,7 @@ The server (`server.ts`) wires everything together: on each document change, it 
 ### Running Tests
 
 ```sh
-# Full test suite (471 tests)
+# Full test suite (501 tests)
 npm test
 
 # Watch mode
@@ -86,7 +86,7 @@ Always run lint and format before committing.
 
 ## Testing Conventions
 
-Tests live alongside source files (`*.test.ts`) or in `server/src/__tests__/`. All tests use Vitest.
+Tests live alongside source files (`*.test.ts`) or in `__tests__/` directories. All tests use Vitest. The MCP server tests are in `mcp-server/src/__tests__/` and use `InMemoryTransport` from the MCP SDK to test tools and resources without stdio.
 
 Provider tests follow a **parse-and-query** pattern:
 
