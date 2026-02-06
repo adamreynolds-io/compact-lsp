@@ -52,6 +52,17 @@ import { getFoldingRanges } from './foldingRanges';
 import { computeLintDiagnostics } from './lintDiagnostics';
 import { computeVersionDiagnostics } from './versionDiagnostics';
 
+// Handle CLI flags before starting the LSP connection
+const args = process.argv.slice(2);
+if (args.includes('--version')) {
+  const pkg = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')
+  );
+  process.stdout.write(`compact-lsp ${pkg.version}\n`);
+  process.exit(0);
+}
+// --stdio is accepted but is a no-op (stdio is the default transport)
+
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
 const workspaceIndex = new WorkspaceIndex();

@@ -1,0 +1,10 @@
+id = "compact"
+name = "Compact"
+version = "0.1.0"
+description = "Compact smart contract language support via compact-lsp"
+authors = ["Adam Reynolds <adam@adamreynolds.io>"]
+schema_version = 1
+
+[language_servers.compact-lsp]
+name = "Compact LSP"
+languages = ["Compact"]

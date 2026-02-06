@@ -19,7 +19,27 @@ A Language Server Protocol (LSP) implementation for the [Compact](https://github
 - **Version-Aware Parsing** — Pragma-based version gating of built-in types, functions, and ADT types
 - **MCP Server** — Model Context Protocol server exposing all language features as tools for AI agents
 
+## Prerequisites
+
+- [Node.js](https://nodejs.org/) (v18 or later)
+
 ## Installation
+
+### Standalone Server (for Neovim, Emacs, Zed, and other editors)
+
+Install the LSP server globally:
+
+```sh
+npm install -g compact-lsp-server
+```
+
+This makes the `compact-lsp` binary available on your PATH. Verify with:
+
+```sh
+compact-lsp --version
+```
+
+### VS Code
 
 The extension is not yet published to the VS Code Marketplace. To install from source:
 
@@ -29,17 +49,77 @@ The extension is not yet published to the VS Code Marketplace. To install from s
    cd compact-lsp
    ```
 
-2. Install dependencies:
+2. Install dependencies and build:
    ```sh
    npm install
-   ```
-
-3. Build the server and extension:
-   ```sh
    npm run build
    ```
 
-4. Open the project in VS Code, then press **F5** to launch the Extension Development Host with the extension loaded.
+3. Open the project in VS Code, then press **F5** to launch the Extension Development Host with the extension loaded.
+
+### Neovim
+
+Add the following to your Neovim configuration (e.g. `~/.config/nvim/init.lua`):
+
+```lua
+vim.filetype.add({
+  extension = {
+    compact = "compact",
+  },
+})
+
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "compact",
+  callback = function()
+    vim.lsp.start({
+      name = "compact-lsp",
+      cmd = { "compact-lsp", "--stdio" },
+      root_dir = vim.fs.dirname(vim.fs.find({ ".git" }, { upward = true })[1]),
+    })
+  end,
+})
+```
+
+### Emacs
+
+#### With eglot (built-in since Emacs 29)
+
+```elisp
+(define-derived-mode compact-mode prog-mode "Compact"
+  "Major mode for editing Compact smart contract files.")
+
+(add-to-list 'auto-mode-alist '("\\.compact\\'" . compact-mode))
+
+(with-eval-after-load 'eglot
+  (add-to-list 'eglot-server-programs
+               '(compact-mode . ("compact-lsp" "--stdio"))))
+```
+
+#### With lsp-mode
+
+```elisp
+(define-derived-mode compact-mode prog-mode "Compact"
+  "Major mode for editing Compact smart contract files.")
+
+(add-to-list 'auto-mode-alist '("\\.compact\\'" . compact-mode))
+
+(with-eval-after-load 'lsp-mode
+  (lsp-register-client
+   (make-lsp-client
+    :new-connection (lsp-stdio-connection '("compact-lsp" "--stdio"))
+    :major-modes '(compact-mode)
+    :server-id 'compact-lsp)))
+```
+
+### Zed
+
+The Zed extension is not yet published to the Zed extension marketplace. To install as a dev extension:
+
+1. Make sure `compact-lsp` is installed globally (see above).
+2. In Zed, open **Extensions** (Cmd+Shift+X / Ctrl+Shift+X).
+3. Click **Install Dev Extension** and select the `zed-extension/` directory from this repository.
+
+The extension uses LSP semantic tokens for syntax highlighting — no tree-sitter grammar is needed.
 
 ## Development
 
@@ -104,6 +184,13 @@ compact-lsp/
 │   │   ├── server.ts       # MCP tool and resource registration
 │   │   └── workspace.ts    # Workspace manager wrapping WorkspaceIndex
 │   └── package.json
+├── zed-extension/          # Zed editor extension
+│   ├── extension.toml      # Extension metadata and language server registration
+│   ├── languages/compact/
+│   │   └── config.toml     # Compact language configuration for Zed
+│   ├── src/
+│   │   └── lib.rs          # Extension entry point (locates compact-lsp on PATH)
+│   └── Cargo.toml
 └── package.json            # Root workspace config
 ```
 

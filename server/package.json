@@ -3,8 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "main": "out/server.js",
+  "bin": {
+    "compact-lsp": "out/server.js"
+  },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && node -e \"const fs=require('fs');const f='out/server.js';const c=fs.readFileSync(f,'utf8');if(!c.startsWith('#!'))fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c);\" && chmod +x out/server.js",
     "watch": "tsc -b -w"
   },
   "dependencies": {
