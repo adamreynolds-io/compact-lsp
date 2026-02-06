@@ -112,8 +112,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 function scanWorkspaceFolder(folderPath: string): void {
   try {
     scanDir(folderPath);
-  } catch {
-    // Ignore errors scanning workspace
+  } catch (e) {
+    connection.console.log(`Failed to scan workspace folder ${folderPath}: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -128,8 +128,8 @@ function scanDir(dirPath: string): void {
         const text = fs.readFileSync(fullPath, 'utf-8');
         const uri = fsPathToUri(fullPath);
         workspaceIndex.addFile(uri, text);
-      } catch {
-        // Ignore unreadable files
+      } catch (e) {
+        connection.console.log(`Failed to read file ${fullPath}: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
   }
@@ -147,8 +147,8 @@ connection.onDidChangeWatchedFiles((params) => {
         const fsPath = uriToFsPath(uri);
         const text = fs.readFileSync(fsPath, 'utf-8');
         workspaceIndex.updateFile(uri, text);
-      } catch {
-        // File may have been deleted between event and read
+      } catch (e) {
+        connection.console.log(`Failed to read watched file ${uri}: ${e instanceof Error ? e.message : String(e)}`);
       }
     } else if (change.type === FileChangeType.Deleted) {
       workspaceIndex.removeFile(uri);
