@@ -1,5 +1,6 @@
-import { SourceFile, Declaration, SourceRange, ParseResult } from './ast';
+import { ParseResult } from './ast';
 import { Scope, SymbolKind, formatSignature } from './symbols';
+import { findScopeForPosition } from './utils';
 
 export interface CompletionItem {
   label: string;
@@ -37,39 +38,4 @@ export function getCompletions(
   }
 
   return items;
-}
-
-function findScopeForPosition(
-  fileScope: Scope,
-  line: number,
-  column: number,
-  sourceFile: SourceFile,
-): Scope {
-  // Find which declaration contains this position
-  for (let i = 0; i < sourceFile.declarations.length; i++) {
-    const decl = sourceFile.declarations[i];
-    if (isPositionInRange(line, column, decl.range)) {
-      // Check if this declaration has a child scope
-      const childScope = findChildScopeForDecl(fileScope, decl);
-      if (childScope) return childScope;
-    }
-  }
-  return fileScope;
-}
-
-function findChildScopeForDecl(scope: Scope, decl: Declaration): Scope | undefined {
-  if ('name' in decl && typeof decl.name === 'string') {
-    return scope.children.find((c) => c.name === decl.name);
-  }
-  if (decl.kind === 'ConstructorDeclaration') {
-    return scope.children.find((c) => c.name === '<constructor>');
-  }
-  return undefined;
-}
-
-function isPositionInRange(line: number, column: number, range: SourceRange): boolean {
-  if (line < range.start.line || line > range.end.line) return false;
-  if (line === range.start.line && column < range.start.column) return false;
-  if (line === range.end.line && column > range.end.column) return false;
-  return true;
 }

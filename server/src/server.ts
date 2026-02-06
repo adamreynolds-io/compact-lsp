@@ -12,6 +12,14 @@ import {
   CompletionItem as LspCompletionItem,
   CompletionItemKind,
   Location,
+  DocumentSymbol,
+  SymbolKind as LspSymbolKind,
+  TextEdit,
+  WorkspaceEdit,
+  SignatureHelp,
+  SignatureInformation,
+  ParameterInformation,
+  SemanticTokensRequest,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { parse } from './parser';
@@ -21,6 +29,15 @@ import { computeDiagnostics } from './diagnostics';
 import { getDefinition } from './definition';
 import { findReferences } from './references';
 import { getCompletions } from './completion';
+import { getDocumentSymbols, DocSymbolKind } from './documentSymbols';
+import { prepareRename, getRenameEdits } from './rename';
+import { getSignatureHelp } from './signatureHelp';
+import {
+  getSemanticTokens,
+  encodeSemanticTokens,
+  TOKEN_TYPES,
+  TOKEN_MODIFIERS,
+} from './semanticTokens';
 import { ParseResult } from './ast';
 
 const connection = createConnection(ProposedFeatures.all);
@@ -41,6 +58,20 @@ connection.onInitialize((_params: InitializeParams): InitializeResult => {
       referencesProvider: true,
       completionProvider: {
         resolveProvider: false,
+      },
+      documentSymbolProvider: true,
+      renameProvider: {
+        prepareProvider: true,
+      },
+      signatureHelpProvider: {
+        triggerCharacters: ['(', ','],
+      },
+      semanticTokensProvider: {
+        legend: {
+          tokenTypes: [...TOKEN_TYPES],
+          tokenModifiers: [...TOKEN_MODIFIERS],
+        },
+        full: true,
       },
     },
   };
@@ -182,6 +213,134 @@ connection.onCompletion((params): LspCompletionItem[] => {
     kind: symbolKindToCompletionKind[item.kind] ?? CompletionItemKind.Text,
     detail: item.detail,
   }));
+});
+
+const docSymbolKindToLsp: Record<DocSymbolKind, LspSymbolKind> = {
+  [DocSymbolKind.Function]: LspSymbolKind.Function,
+  [DocSymbolKind.Variable]: LspSymbolKind.Variable,
+  [DocSymbolKind.Constant]: LspSymbolKind.Constant,
+  [DocSymbolKind.Struct]: LspSymbolKind.Struct,
+  [DocSymbolKind.Enum]: LspSymbolKind.Enum,
+  [DocSymbolKind.Module]: LspSymbolKind.Module,
+  [DocSymbolKind.Interface]: LspSymbolKind.Interface,
+  [DocSymbolKind.Field]: LspSymbolKind.Field,
+  [DocSymbolKind.EnumMember]: LspSymbolKind.EnumMember,
+};
+
+function toDocumentSymbol(sym: ReturnType<typeof getDocumentSymbols>[number]): DocumentSymbol {
+  return {
+    name: sym.name,
+    detail: sym.detail,
+    kind: docSymbolKindToLsp[sym.kind] ?? LspSymbolKind.Variable,
+    range: {
+      start: { line: sym.range.start.line, character: sym.range.start.column },
+      end: { line: sym.range.end.line, character: sym.range.end.column },
+    },
+    selectionRange: {
+      start: { line: sym.selectionRange.start.line, character: sym.selectionRange.start.column },
+      end: { line: sym.selectionRange.end.line, character: sym.selectionRange.end.column },
+    },
+    children: sym.children.map(toDocumentSymbol),
+  };
+}
+
+connection.onDocumentSymbol((params): DocumentSymbol[] => {
+  const state = documentState.get(params.textDocument.uri);
+  if (!state) return [];
+
+  const symbols = getDocumentSymbols(state.parseResult.sourceFile);
+  return symbols.map(toDocumentSymbol);
+});
+
+connection.onPrepareRename((params) => {
+  const state = documentState.get(params.textDocument.uri);
+  if (!state) return undefined;
+
+  const result = prepareRename(
+    state.parseResult,
+    state.fileScope,
+    state.references,
+    params.position.line,
+    params.position.character,
+    state.source,
+  );
+
+  if (!result) return undefined;
+
+  return {
+    range: {
+      start: { line: result.range.start.line, character: result.range.start.column },
+      end: { line: result.range.end.line, character: result.range.end.column },
+    },
+    placeholder: result.placeholder,
+  };
+});
+
+connection.onRenameRequest((params): WorkspaceEdit | undefined => {
+  const state = documentState.get(params.textDocument.uri);
+  if (!state) return undefined;
+
+  const edits = getRenameEdits(
+    state.parseResult,
+    state.fileScope,
+    state.references,
+    params.position.line,
+    params.position.character,
+    state.source,
+    params.newName,
+  );
+
+  if (edits.length === 0) return undefined;
+
+  const textEdits: TextEdit[] = edits.map((e) => ({
+    range: {
+      start: { line: e.range.start.line, character: e.range.start.column },
+      end: { line: e.range.end.line, character: e.range.end.column },
+    },
+    newText: e.newText,
+  }));
+
+  return {
+    changes: {
+      [params.textDocument.uri]: textEdits,
+    },
+  };
+});
+
+connection.onSignatureHelp((params): SignatureHelp | undefined => {
+  const state = documentState.get(params.textDocument.uri);
+  if (!state) return undefined;
+
+  const result = getSignatureHelp(
+    state.parseResult,
+    state.fileScope,
+    params.position.line,
+    params.position.character,
+    state.source,
+  );
+
+  if (!result) return undefined;
+
+  const sigInfo: SignatureInformation = {
+    label: result.label,
+    parameters: result.parameters.map((p): ParameterInformation => ({ label: p.label })),
+  };
+
+  return {
+    signatures: [sigInfo],
+    activeSignature: 0,
+    activeParameter: result.activeParameter,
+  };
+});
+
+connection.onRequest(SemanticTokensRequest.type, (params) => {
+  const state = documentState.get(params.textDocument.uri);
+  if (!state) return { data: [] };
+
+  const tokens = getSemanticTokens(state.parseResult, state.fileScope, state.source);
+  const data = encodeSemanticTokens(tokens);
+
+  return { data };
 });
 
 documents.listen(connection);
