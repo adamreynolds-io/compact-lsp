@@ -35,6 +35,15 @@ export const BUILTIN_DOCS: Record<string, string> = {
   right: 'Constructs the right variant of an Either type.',
   burnAddress: 'Returns the zero/burn address as an Either<ZswapCoinPublicKey, ContractAddress>.',
 
+  // Built-in functions (0.19.0+)
+  NativePointX: 'Extracts the X coordinate from a NativePoint.',
+  NativePointY: 'Extracts the Y coordinate from a NativePoint.',
+
+  // Built-in functions (0.20.0+)
+  nativePointX: 'Extracts the X coordinate from a NativePoint.',
+  nativePointY: 'Extracts the Y coordinate from a NativePoint.',
+  constructNativePoint: 'Constructs a NativePoint from X and Y coordinates.',
+
   // Ledger ADT types
   Counter: 'A ledger counter that supports increment and decrement operations.',
   Set: 'A ledger set that stores unique elements.',
@@ -50,4 +59,8 @@ export const BUILTIN_DOCS: Record<string, string> = {
   ZswapCoinPublicKey: 'A public key type for identifying transaction signers.',
   ContractAddress: 'An address type identifying a deployed contract.',
   Maybe: 'An optional type that may or may not contain a value.',
+  CurvePoint: 'An elliptic curve point type used for cryptographic operations.',
+
+  // Ledger ADT types (0.19.0+)
+  NativePoint: 'A native elliptic curve point type for efficient cryptographic operations.',
 };

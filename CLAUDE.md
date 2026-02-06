@@ -62,6 +62,7 @@ compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language
 - **Purpose:** Smart contract development for blockchain/distributed ledger platforms
 - **File Extension:** `.compact`
 - **Repository:** https://github.com/LFDT-Minokawa/compact
+- **Version Registry:** The LSP tracks language versions `0.14.0`, `0.18.0`, `0.19.0`, `0.20.0`, and `0.21.0` in `server/src/versionRegistry.ts`
 - **Version Registry Maintenance:** Periodically check https://github.com/OpenZeppelin/compact-contracts for `pragma language_version` updates. If the contracts move to a newer version, add a corresponding entry to `server/src/versionRegistry.ts` with the appropriate built-in types, functions, and ADT types, and add documentation to `server/src/builtinDocs.ts`.
 
 ### LSP Concepts

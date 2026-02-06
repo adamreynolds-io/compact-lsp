@@ -108,7 +108,7 @@ describe('versionRegistry', () => {
       expect(funcs.length).toBe(22);
     });
 
-    it('0.18.0 has 0.14.0 ADTs plus Either, ZswapCoinPublicKey, ContractAddress, Maybe', () => {
+    it('0.18.0 has 0.14.0 ADTs plus Either, ZswapCoinPublicKey, ContractAddress, Maybe, CurvePoint', () => {
       const adts = LANGUAGE_VERSIONS['0.18.0'].builtinAdtTypes;
       // All 0.14.0 ADTs
       expect(adts).toContain('Counter');
@@ -118,7 +118,68 @@ describe('versionRegistry', () => {
       expect(adts).toContain('ZswapCoinPublicKey');
       expect(adts).toContain('ContractAddress');
       expect(adts).toContain('Maybe');
-      expect(adts.length).toBe(12);
+      expect(adts).toContain('CurvePoint');
+      expect(adts.length).toBe(13);
+    });
+
+    it('contains version 0.19.0', () => {
+      expect(LANGUAGE_VERSIONS['0.19.0']).toBeDefined();
+      expect(isKnownVersion('0.19.0')).toBe(true);
+    });
+
+    it('0.19.0 has all 0.14.0 built-in types', () => {
+      const types = LANGUAGE_VERSIONS['0.19.0'].builtinTypes;
+      expect(types).toEqual(['Field', 'Boolean', 'Uint', 'Bytes', 'Vector', 'Opaque', 'Void']);
+    });
+
+    it('0.19.0 has NativePoint in ADTs but not CurvePoint', () => {
+      const adts = LANGUAGE_VERSIONS['0.19.0'].builtinAdtTypes;
+      expect(adts).toContain('NativePoint');
+      expect(adts).not.toContain('CurvePoint');
+      expect(adts.length).toBe(13);
+    });
+
+    it('0.19.0 has NativePointX and NativePointY in functions', () => {
+      const funcs = LANGUAGE_VERSIONS['0.19.0'].builtinFunctions;
+      expect(funcs).toContain('NativePointX');
+      expect(funcs).toContain('NativePointY');
+      expect(funcs).toContain('left');
+      expect(funcs).toContain('right');
+      expect(funcs.length).toBe(24);
+    });
+
+    it('contains version 0.20.0', () => {
+      expect(LANGUAGE_VERSIONS['0.20.0']).toBeDefined();
+      expect(isKnownVersion('0.20.0')).toBe(true);
+    });
+
+    it('0.20.0 has nativePointX, nativePointY, constructNativePoint in functions', () => {
+      const funcs = LANGUAGE_VERSIONS['0.20.0'].builtinFunctions;
+      expect(funcs).toContain('nativePointX');
+      expect(funcs).toContain('nativePointY');
+      expect(funcs).toContain('constructNativePoint');
+      expect(funcs).not.toContain('NativePointX');
+      expect(funcs).not.toContain('NativePointY');
+      expect(funcs.length).toBe(25);
+    });
+
+    it('0.20.0 has NativePoint in ADTs', () => {
+      const adts = LANGUAGE_VERSIONS['0.20.0'].builtinAdtTypes;
+      expect(adts).toContain('NativePoint');
+      expect(adts.length).toBe(13);
+    });
+
+    it('contains version 0.21.0', () => {
+      expect(LANGUAGE_VERSIONS['0.21.0']).toBeDefined();
+      expect(isKnownVersion('0.21.0')).toBe(true);
+    });
+
+    it('0.21.0 has identical capabilities to 0.20.0', () => {
+      const caps20 = LANGUAGE_VERSIONS['0.20.0'];
+      const caps21 = LANGUAGE_VERSIONS['0.21.0'];
+      expect(caps21.builtinTypes).toEqual(caps20.builtinTypes);
+      expect(caps21.builtinFunctions).toEqual(caps20.builtinFunctions);
+      expect(caps21.builtinAdtTypes).toEqual(caps20.builtinAdtTypes);
     });
   });
 
@@ -138,6 +199,45 @@ describe('versionRegistry', () => {
     it('exact 0.18.0 resolves', () => {
       const result = resolveVersion('0.18.0', '=');
       expect(result).toEqual({ effectiveVersion: '0.18.0', fallback: false });
+    });
+  });
+
+  describe('version resolution with 0.19.0–0.21.0', () => {
+    it('>= 0.19.0 resolves exactly', () => {
+      const result = resolveVersion('0.19.0', '>=');
+      expect(result).toEqual({ effectiveVersion: '0.19.0', fallback: false });
+    });
+
+    it('>= 0.20.0 resolves exactly', () => {
+      const result = resolveVersion('0.20.0', '>=');
+      expect(result).toEqual({ effectiveVersion: '0.20.0', fallback: false });
+    });
+
+    it('>= 0.21.0 resolves exactly', () => {
+      const result = resolveVersion('0.21.0', '>=');
+      expect(result).toEqual({ effectiveVersion: '0.21.0', fallback: false });
+    });
+
+    it('>= 0.15.0 falls back to 0.18.0', () => {
+      const result = resolveVersion('0.15.0', '>=');
+      expect(result).toBeDefined();
+      expect(result!.effectiveVersion).toBe('0.18.0');
+      expect(result!.fallback).toBe(true);
+    });
+
+    it('exact 0.19.0 resolves', () => {
+      const result = resolveVersion('0.19.0', '=');
+      expect(result).toEqual({ effectiveVersion: '0.19.0', fallback: false });
+    });
+
+    it('exact 0.20.0 resolves', () => {
+      const result = resolveVersion('0.20.0', '=');
+      expect(result).toEqual({ effectiveVersion: '0.20.0', fallback: false });
+    });
+
+    it('exact 0.21.0 resolves', () => {
+      const result = resolveVersion('0.21.0', '=');
+      expect(result).toEqual({ effectiveVersion: '0.21.0', fallback: false });
     });
   });
 });

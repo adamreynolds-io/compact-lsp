@@ -47,4 +47,50 @@ describe('versionDiagnostics', () => {
     expect(diags[0].code).toBe('unsupported-version');
     expect(diags[0].severity).toBe('warning');
   });
+
+  it('produces no diagnostics for exact 0.19.0', () => {
+    const { sourceFile } = parse('pragma language_version 0.19.0;');
+    const diags = computeVersionDiagnostics(sourceFile);
+    expect(diags).toHaveLength(0);
+  });
+
+  it('produces no diagnostics for exact 0.20.0', () => {
+    const { sourceFile } = parse('pragma language_version 0.20.0;');
+    const diags = computeVersionDiagnostics(sourceFile);
+    expect(diags).toHaveLength(0);
+  });
+
+  it('produces no diagnostics for exact 0.21.0', () => {
+    const { sourceFile } = parse('pragma language_version 0.21.0;');
+    const diags = computeVersionDiagnostics(sourceFile);
+    expect(diags).toHaveLength(0);
+  });
+
+  it('produces no diagnostics for >= 0.19.0', () => {
+    const { sourceFile } = parse('pragma language_version >= 0.19.0;');
+    const diags = computeVersionDiagnostics(sourceFile);
+    expect(diags).toHaveLength(0);
+  });
+
+  it('produces no diagnostics for >= 0.20.0', () => {
+    const { sourceFile } = parse('pragma language_version >= 0.20.0;');
+    const diags = computeVersionDiagnostics(sourceFile);
+    expect(diags).toHaveLength(0);
+  });
+
+  it('produces no diagnostics for >= 0.21.0', () => {
+    const { sourceFile } = parse('pragma language_version >= 0.21.0;');
+    const diags = computeVersionDiagnostics(sourceFile);
+    expect(diags).toHaveLength(0);
+  });
+
+  it('>= 0.15.0 falls back to 0.18.0 with version-resolved diagnostic', () => {
+    const { sourceFile } = parse('pragma language_version >= 0.15.0;');
+    const diags = computeVersionDiagnostics(sourceFile);
+    expect(diags).toHaveLength(1);
+    expect(diags[0].code).toBe('version-resolved');
+    expect(diags[0].severity).toBe('information');
+    expect(diags[0].message).toContain('0.15.0');
+    expect(diags[0].message).toContain('0.18.0');
+  });
 });
