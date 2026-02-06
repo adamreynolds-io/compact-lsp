@@ -50,7 +50,7 @@ The server (`server.ts`) wires everything together: on each document change, it 
 ### Running Tests
 
 ```sh
-# Full test suite (501 tests)
+# Full test suite (526 tests)
 npm test
 
 # Watch mode

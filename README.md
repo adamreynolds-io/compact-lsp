@@ -50,7 +50,7 @@ npm install
 # Build all workspaces
 npm run build
 
-# Run tests (501 tests across 26 test files)
+# Run tests (526 tests across 26 test files)
 npm test
 
 # Run tests in watch mode
@@ -115,6 +115,41 @@ compact-lsp/
 - **vscode-languageserver** — Microsoft's LSP implementation for Node.js
 - **vscode-languageclient** — Client library for the VS Code extension
 - **@modelcontextprotocol/sdk** — MCP server SDK for AI agent integration
+
+## MCP Server
+
+The MCP server exposes all language features as tools for AI agents (Claude Code, Cursor, etc.) over the [Model Context Protocol](https://modelcontextprotocol.io/).
+
+### Usage
+
+```sh
+npm run build
+node mcp-server/out/index.js --workspace /path/to/compact/project
+```
+
+The server communicates over stdio. Point your MCP client at the command above.
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `compact_diagnostics` | Run the full diagnostic pipeline on a file or inline source |
+| `compact_hover` | Get type information and documentation for a position |
+| `compact_definition` | Jump to a symbol's definition |
+| `compact_references` | Find all usages of a symbol across the workspace |
+| `compact_completions` | Get completion suggestions for a position |
+| `compact_symbols` | Get the hierarchical symbol outline of a file |
+| `compact_rename` | Compute rename edits across the workspace |
+| `compact_signature` | Get parameter hints for a function call |
+| `compact_analyze` | Run the full analysis pipeline (diagnostics + symbols + exports) |
+| `compact_refresh` | Re-scan the workspace and rebuild the index |
+
+### Resources
+
+| Resource | Description |
+|----------|-------------|
+| `compact://files` | List all `.compact` files in the workspace |
+| `compact://file/{path}` | Read a file's contents |
 
 ## Links
 
