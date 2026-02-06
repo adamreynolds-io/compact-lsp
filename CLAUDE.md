@@ -5,15 +5,18 @@
 compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language](https://github.com/LFDT-Minokawa/compact), a smart contract programming language, providing rich IDE features for `.compact` files in VS Code.
 
 ### Current Capabilities
-- **Diagnostics:** Parse errors and undefined reference warnings
-- **Hover:** Type information and signatures on hover
-- **Go to Definition:** Jump to symbol declarations
-- **Find References:** Find all usages of a symbol
-- **Auto-completion:** Context-aware symbol suggestions
+- **Diagnostics:** Parse errors, undefined references, import errors, and lint warnings (unused imports/variables/parameters, unreachable code)
+- **Hover:** Type information, signatures, and built-in documentation on hover
+- **Go to Definition:** Jump to symbol declarations, including cross-file imports
+- **Find References:** Find all usages of a symbol across the workspace
+- **Auto-completion:** Context-aware symbol suggestions with documentation
 - **Document Symbols:** Hierarchical symbol outline
-- **Rename Symbol:** Rename a symbol and all its references
-- **Signature Help:** Parameter hints for function calls
+- **Rename Symbol:** Rename a symbol and all its references across files
+- **Signature Help:** Parameter hints for function calls, with documentation
 - **Semantic Tokens:** Symbol-aware syntax highlighting
+- **Code Actions:** Quick fixes (add import, did-you-mean, remove unused import) and refactoring (extract to const)
+- **Folding Ranges:** Code folding for modules, circuits, structs, enums, control flow, and import groups
+- **Multi-file Analysis:** Workspace-wide indexing with cross-file navigation and import diagnostics
 
 ### Future Goals
 - Standalone server mode for other editors (Neovim, Emacs, etc.)
@@ -71,6 +74,8 @@ compact-lsp is a Language Server Protocol (LSP) server for the [Compact Language
   - `textDocument/rename` and `textDocument/prepareRename` — symbol renaming
   - `textDocument/signatureHelp` — parameter hints
   - `textDocument/semanticTokens/full` — rich syntax highlighting
+  - `textDocument/codeAction` — quick fixes and refactoring
+  - `textDocument/foldingRange` — code folding
 
 ## Important Constraints
 

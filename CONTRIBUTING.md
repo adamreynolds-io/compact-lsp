@@ -31,6 +31,7 @@ The server (`server.ts`) wires everything together: on each document change, it 
 | `references.ts` | Find-references provider |
 | `completion.ts` | Auto-completion provider |
 | `diagnostics.ts` | Diagnostics provider — parse errors and undefined references |
+| `importDiagnostics.ts` | Import diagnostics — module-not-found and specifier-not-exported errors |
 | `documentSymbols.ts` | Document symbols provider — hierarchical outline |
 | `rename.ts` | Rename provider with prepare-rename validation |
 | `signatureHelp.ts` | Signature help provider — parameter hints for calls |
@@ -40,7 +41,6 @@ The server (`server.ts`) wires everything together: on each document change, it 
 | `builtinDocs.ts` | Built-in documentation registry — single-sentence descriptions for all built-in types, functions, and ADTs |
 | `workspaceIndex.ts` | Workspace index — maps file URIs to parsed state for cross-file analysis |
 | `moduleResolution.ts` | Module resolution — resolves import identifiers and string paths to file URIs |
-| `importDiagnostics.ts` | Import diagnostics — module-not-found and specifier-not-exported errors |
 | `lintDiagnostics.ts` | Lint diagnostics — unused imports, unused variables, unused parameters, unreachable code warnings |
 
 ## Development Workflow
