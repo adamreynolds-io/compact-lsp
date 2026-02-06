@@ -41,13 +41,14 @@ The server (`server.ts`) wires everything together: on each document change, it 
 | `workspaceIndex.ts` | Workspace index — maps file URIs to parsed state for cross-file analysis |
 | `moduleResolution.ts` | Module resolution — resolves import identifiers and string paths to file URIs |
 | `importDiagnostics.ts` | Import diagnostics — module-not-found and specifier-not-exported errors |
+| `lintDiagnostics.ts` | Lint diagnostics — unused imports, unused variables, unused parameters, unreachable code warnings |
 
 ## Development Workflow
 
 ### Running Tests
 
 ```sh
-# Full test suite (395 tests)
+# Full test suite (416 tests)
 npm test
 
 # Watch mode

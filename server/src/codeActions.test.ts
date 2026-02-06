@@ -7,6 +7,7 @@ import { computeImportDiagnostics } from './importDiagnostics';
 import { WorkspaceIndex } from './workspaceIndex';
 import { fsPathToUri } from './moduleResolution';
 import { getCodeActions, CodeActionResult } from './codeActions';
+import { computeLintDiagnostics } from './lintDiagnostics';
 import { SourceRange } from './ast';
 
 function makeUri(name: string): string {
@@ -52,6 +53,9 @@ function getActionsForSource(
     );
     diagnostics.push(...importDiags);
   }
+
+  const lintDiags = computeLintDiagnostics(parseResult.sourceFile, fileScope, references);
+  diagnostics.push(...lintDiags);
 
   // Filter diagnostics that overlap with the range
   const relevantDiags = diagnostics.filter(
@@ -381,6 +385,44 @@ describe('Code Actions', () => {
         const removeAction = actions.find((a) => a.title.includes('Remove unused import'));
         expect(removeAction).toBeUndefined();
       }
+    });
+  });
+
+  describe('quick fix for unused-import lint warning', () => {
+    it('offers quick fix to remove unused import from lint diagnostic', () => {
+      const source = 'import { unused } from SomeModule;\ncircuit foo() : Void { }';
+      // Point range on the import line — lint diagnostic overlaps
+      const actions = getActionsForSource(source, pointRange(0, 9));
+
+      const quickFix = actions.find(
+        (a) => a.kind === 'quickfix' && a.title.includes("Remove unused import 'unused'"),
+      );
+      expect(quickFix).toBeDefined();
+      expect(quickFix!.edits[0].newText).toBe('');
+    });
+
+    it('quick fix removes only the unused specifier when multiple exist', () => {
+      const source =
+        'import { used, unused } from SomeModule;\ncircuit foo() : Void {\n  used;\n}';
+      // Point range on the import line
+      const actions = getActionsForSource(source, pointRange(0, 15));
+
+      const quickFix = actions.find(
+        (a) => a.kind === 'quickfix' && a.title.includes("Remove unused import 'unused'"),
+      );
+      expect(quickFix).toBeDefined();
+      expect(quickFix!.edits[0].newText).toContain('import { used } from SomeModule;');
+    });
+
+    it('no quick fix when import is used', () => {
+      const source =
+        'import { used } from SomeModule;\ncircuit foo() : Void {\n  used;\n}';
+      const actions = getActionsForSource(source, pointRange(0, 9));
+
+      const quickFix = actions.find(
+        (a) => a.kind === 'quickfix' && a.title.includes('Remove unused import'),
+      );
+      expect(quickFix).toBeUndefined();
     });
   });
 

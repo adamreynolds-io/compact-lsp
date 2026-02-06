@@ -49,6 +49,7 @@ import { computeImportDiagnostics } from './importDiagnostics';
 import { fsPathToUri, uriToFsPath } from './moduleResolution';
 import { getCodeActions } from './codeActions';
 import { getFoldingRanges } from './foldingRanges';
+import { computeLintDiagnostics } from './lintDiagnostics';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
@@ -203,6 +204,9 @@ function analyzeDocument(uri: string, text: string): void {
   );
   diagnostics.push(...importDiags);
 
+  const lintDiags = computeLintDiagnostics(parseResult.sourceFile, fileScope, references);
+  diagnostics.push(...lintDiags);
+
   const lspDiagnostics: LspDiagnostic[] = diagnostics.map((d) => ({
     range: {
       start: { line: d.range.start.line, character: d.range.start.column },
@@ -258,6 +262,13 @@ function reanalyzeDependentFiles(changedUri: string): void {
             entry.fileScope,
           );
           baseDiags.push(...importDiags);
+          baseDiags.push(
+            ...computeLintDiagnostics(
+              entry.parseResult.sourceFile,
+              entry.fileScope,
+              entry.references,
+            ),
+          );
 
           const lspDiags: LspDiagnostic[] = baseDiags.map((d) => ({
             range: {

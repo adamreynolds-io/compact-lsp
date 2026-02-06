@@ -40,6 +40,9 @@ export function getCodeActions(
     if (diag.code === 'module-not-found' && workspaceIndex) {
       actions.push(...suggestSimilarModule(diag, parseResult, source, workspaceIndex));
     }
+    if (diag.code === 'unused-import') {
+      actions.push(...fixUnusedImport(diag, parseResult, source));
+    }
   }
 
   // Refactoring actions (always available)
@@ -353,6 +356,88 @@ function extractToConst(
       ],
     },
   ];
+}
+
+function fixUnusedImport(
+  diag: Diagnostic,
+  parseResult: ParseResult,
+  source: string,
+): CodeActionResult[] {
+  // Extract name from "'foo' is imported but never used"
+  const nameMatch = diag.message.match(/^'([^']+)' is imported but never used$/);
+  if (!nameMatch) return [];
+  const localName = nameMatch[1];
+
+  // Find the import declaration containing this specifier
+  for (const decl of parseResult.sourceFile.declarations) {
+    if (decl.kind !== 'ImportDeclaration' || !decl.specifiers) continue;
+
+    const specIndex = decl.specifiers.findIndex((s) => {
+      const name = s.alias || s.name;
+      return name === localName;
+    });
+    if (specIndex === -1) continue;
+
+    const spec = decl.specifiers[specIndex];
+    // Verify the diagnostic range matches this specifier
+    if (
+      spec.range.start.line !== diag.range.start.line ||
+      spec.range.start.column !== diag.range.start.column
+    )
+      continue;
+
+    if (decl.specifiers.length === 1) {
+      // Only specifier — remove entire import
+      return [
+        {
+          title: `Remove unused import '${localName}'`,
+          kind: 'quickfix',
+          edits: [
+            {
+              range: {
+                start: { line: decl.range.start.line, column: 0, offset: 0 },
+                end: { line: decl.range.end.line + 1, column: 0, offset: 0 },
+              },
+              newText: '',
+            },
+          ],
+          diagnostics: [diag],
+        },
+      ];
+    } else {
+      // Multiple specifiers — remove just this one
+      const remaining = decl.specifiers.filter((_, i) => i !== specIndex);
+      const specList = remaining.map((s) => (s.alias ? `${s.name} as ${s.alias}` : s.name));
+      const newImport = `import { ${specList.join(', ')} } from ${decl.source || decl.moduleName};`;
+
+      const lines = source.split('\n');
+      const endLine = decl.range.end.line;
+      const endCol = lines[endLine] !== undefined ? lines[endLine].length : decl.range.end.column;
+
+      return [
+        {
+          title: `Remove unused import '${localName}'`,
+          kind: 'quickfix',
+          edits: [
+            {
+              range: {
+                start: {
+                  line: decl.range.start.line,
+                  column: decl.range.start.column,
+                  offset: 0,
+                },
+                end: { line: endLine, column: endCol, offset: 0 },
+              },
+              newText: newImport,
+            },
+          ],
+          diagnostics: [diag],
+        },
+      ];
+    }
+  }
+
+  return [];
 }
 
 function removeUnusedImport(
