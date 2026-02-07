@@ -1,0 +1,263 @@
+pragma language_version 0.21.0;
+
+// ============================================================
+// SMOKE TEST — Manual VS Code Extension Testing
+// ============================================================
+//
+// How to use:
+//   1. F5 to launch Extension Development Host
+//   2. Open this file in the new window
+//   3. Walk through each section below
+//
+// Legend:
+//   [DIAG]    Check diagnostics / Problems panel
+//   [HOVER]   Hover over the indicated symbol
+//   [DEF]     Cmd+Click (Go to Definition)
+//   [REF]     Right-click → Find All References
+//   [COMP]    Trigger completions (Ctrl+Space)
+//   [SIG]     Check signature help (type '(' after function)
+//   [RENAME]  F2 on the symbol
+//   [FOLD]    Fold/unfold the block
+//   [SYMBOL]  Cmd+Shift+O to see in outline
+//   [ACTION]  Check lightbulb / quick fix
+//   [SEM]     Observe semantic token coloring
+// ============================================================
+
+
+// --- 1. VERSION PRAGMA ---
+// [HOVER]  Hover over "0.21.0" above — should show version status
+// [DIAG]   No version warnings (0.21.0 is supported)
+
+
+// --- 2. LEDGER DECLARATIONS ---
+// [HOVER]  Hover over "counter" → should show "ledger counter : Field"
+// [SYMBOL] Should appear in document outline
+// [SEM]    "Field" should be colored as a built-in type
+export sealed ledger counter : Field;
+ledger flag : Boolean;
+
+
+// --- 3. WITNESS DECLARATIONS ---
+// [HOVER]  Hover over "getSecret" → should show witness signature
+// [SYMBOL] Should appear in outline
+witness getSecret() : Field;
+witness getFlag(input: Field) : Boolean;
+
+
+// --- 4. STRUCT ---
+// [FOLD]   Fold the struct body
+// [HOVER]  Hover over "Point" → should show "struct Point"
+// [SYMBOL] Should appear with fields nested underneath
+// [DEF]    Cmd+Click on "Point" usages below should jump here
+struct Point {
+  x: Field;
+  y: Field;
+}
+
+
+// --- 5. ENUM ---
+// [FOLD]   Fold the enum body
+// [HOVER]  Hover over "Color" → should show "enum Color"
+// [SYMBOL] Should appear with variants
+enum Color { red, green, blue }
+
+
+// --- 6. MODULE ---
+// [FOLD]   Fold the module body
+// [SYMBOL] Should appear with nested circuit
+// [DEF]    Cmd+Click "helper" in usages below should jump here
+module Utils {
+  circuit helper(v: Field) : Field {
+    return v;
+  }
+}
+
+
+// --- 7. CONTRACT ---
+// [FOLD]   Fold the contract body
+// [SYMBOL] Should appear in outline
+contract MyContract {
+  circuit verify(proof: Field) : Boolean;
+}
+
+// Constructor (top-level, not inside contract)
+// [FOLD]   Fold the constructor body
+// [SYMBOL] Should appear in outline
+constructor(owner: Field) {
+  const x = owner;
+}
+
+
+// --- 8. NEW TYPE / TYPE ALIAS ---
+// [HOVER]  Hover over "MyBool" → should show the type alias
+// [SYMBOL] Should appear in outline
+new type MyBool = Boolean;
+new type SmallUint = Uint<8>;
+new type RangeUint = Uint<4..8>;
+export new type ExportedType = Field;
+
+
+// --- 9. EXPORT LIST ---
+// [DIAG]   No errors on this line
+export { counter, getSecret };
+
+
+// --- 10. CIRCUIT WITH VARIOUS EXPRESSIONS ---
+// [FOLD]   Fold the entire circuit
+// [SYMBOL] "increment" with params in outline
+// [SIG]    When typing increment( elsewhere, should show signature help
+// [HOVER]  Hover over "increment" → full signature
+export pure circuit increment(amount: Field) : Void {
+
+  // -- Number literals --
+  // [HOVER]  Hover over each → should show type info
+  const hex = 0xFF;
+  const bin = 0b1010;
+  const oct = 0o77;
+  const dec = 42;
+
+  // -- String in assert --
+  // [DIAG]   No errors
+  assert(true, "must be true");
+  assert(true, 'single quotes too');
+
+  // -- Multiple const bindings --
+  // [HOVER]  Hover over "a" or "b"
+  const a: Field = 1, b: Field = 2;
+
+  // -- Tuple destructuring --
+  // [HOVER]  Hover over "first" or "second"
+  const [first, second] = [a, b];
+
+  // -- Struct destructuring --
+  // [HOVER]  Hover over "x" or "y"
+  const { x, y } = Point { x: a, y: b };
+
+  // -- Struct shorthand --
+  // [DEF]    Cmd+Click "Point" → jumps to struct definition
+  const p = Point { x, y };
+
+  // -- Spread syntax --
+  const spread_tuple = [1, ...p, 3];
+
+  // -- Bytes literal --
+  // [HOVER]  Hover → should show type
+  const data = Bytes[1, 2, 3, 0xFF];
+
+  // -- Block arrow function --
+  // [FOLD]   Fold the arrow body
+  // [HOVER]  Hover over "mapper"
+  const mapper = (v: Field) => {
+    const inner = v;
+    return inner;
+  };
+
+  // -- Expression arrow function --
+  const adder = (x: Field, y: Field) => x + y;
+
+  // -- For loop --
+  // [FOLD]   Fold the for body
+  for (const i of 0..10) {
+    const temp = i;
+  }
+
+  // -- If / else --
+  // [FOLD]   Fold if/else blocks
+  if (flag) {
+    const t = 1;
+  } else {
+    const f = 0;
+  }
+
+  // -- Nested block --
+  // [FOLD]   Fold the block
+  {
+    const scoped = 1;
+  }
+
+  // -- Cross-reference to module function --
+  // [DEF]    Cmd+Click "helper" → jumps into Utils module
+  const h = Utils.helper(amount);
+
+  // -- Ledger mutation --
+  counter += amount;
+}
+
+
+// --- 11. SECOND CIRCUIT (for cross-references) ---
+// [REF]    Right-click "increment" → Find All References should show both definition and call
+circuit caller(x: Field) : Void {
+  increment(x);
+  const secret = getSecret();
+}
+
+
+// --- 12. COMPLETIONS ---
+// Place cursor inside this circuit and press Ctrl+Space:
+//   - Should see built-in types: Field, Boolean, Uint, Vector, etc.
+//   - Should see built-in functions: map, fold, pad, slice, etc.
+//   - Should see local symbols: Point, Color, Utils, counter, etc.
+//   - Should see ADT types: Counter, Cell, Either, Maybe, etc.
+circuit completionTest(input: Field) : Void {
+  // [COMP]   Type "F" → should suggest "Field", "fold", etc.
+  // [COMP]   Type "ma" → should suggest "map"
+  // [COMP]   Type "Po" → should suggest "Point"
+  // [COMP]   Type "Ma" → should suggest "Maybe", "Map"
+  const val = input;
+}
+
+
+// --- 13. RENAME ---
+// [RENAME] Put cursor on "renameMe" below, press F2, type a new name.
+//          All 3 references should update.
+circuit renameTest(renameMe: Field) : Field {
+  const doubled = renameMe + renameMe;
+  return doubled;
+}
+
+
+// --- 14. BUILT-IN DOCUMENTATION ---
+// [HOVER]  Hover over these built-in types — should show docs:
+//          Field, Boolean, Uint, Vector, Opaque, Bytes, Void
+// [HOVER]  Hover over built-in functions in expressions:
+//          map, fold, pad, slice, disclose, ecAdd, etc.
+// [SIG]    Type "map(" → signature help with documentation
+circuit builtinDocsTest(xs: Vector<4, Field>) : Void {
+  const doubled = map(xs, (x: Field) => x + x);
+  const padded = pad(xs, 8, 0);
+  const sliced = slice(xs, 0, 2);
+  const folded = fold(xs, 0, (acc: Field, x: Field) => acc + x);
+}
+
+
+// --- 15. SEMANTIC TOKENS ---
+// [SEM]    Observe coloring throughout the file:
+//          - Keywords (circuit, struct, enum, etc.) in one color
+//          - Types (Field, Boolean, Point, etc.) in another
+//          - Functions/circuits in another
+//          - Numbers, strings in appropriate colors
+//          - Comments in comment color
+
+
+// --- 16. DIAGNOSTICS — INTENTIONAL ERRORS ---
+// [DIAG]   These should produce errors in the Problems panel:
+
+// Undefined reference error
+circuit errorTest() : Void {
+  const bad = undefinedSymbol;
+}
+
+
+// --- 17. CODE ACTIONS ---
+// [ACTION] Hover over "unusedParam" warning → lightbulb should appear
+circuit codeActionTest(unusedParam: Field) : Void {
+  const used = 1;
+}
+
+// --- 18. LINT WARNINGS ---
+// [DIAG]   "unusedVar" should have unused variable warning
+// [DIAG]   "unusedParam" above should have unused parameter warning
+circuit lintTest(x: Field) : Field {
+  const unusedVar = 42;
+  return x;
+}

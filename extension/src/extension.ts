@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import { ExtensionContext, window, workspace } from 'vscode';
 import {
@@ -10,7 +11,11 @@ import {
 let client: LanguageClient;
 
 export function activate(context: ExtensionContext): void {
-  const serverModule = context.asAbsolutePath(path.join('server', 'out', 'server.js'));
+  // In packaged extension: server is bundled at extension/server/out/server.js
+  // In development (F5): server is at ../server/out/server.js relative to extension/
+  const bundledServer = context.asAbsolutePath(path.join('server', 'out', 'server.js'));
+  const devServer = context.asAbsolutePath(path.join('..', 'server', 'out', 'server.js'));
+  const serverModule = fs.existsSync(bundledServer) ? bundledServer : devServer;
 
   const serverOptions: ServerOptions = {
     run: { module: serverModule, transport: TransportKind.stdio },
